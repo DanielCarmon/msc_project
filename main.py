@@ -108,17 +108,17 @@ def run2():
     k = 4
     data_params = 4*n,d
     np.random.seed(2018)
-    #v1 = np.array([0,0,0])[np.newaxis,:]
-    v1 = np.random.rand(1,3)
+    v1 = np.array([0,0,0])[np.newaxis,:]
+    #v1 = np.random.rand(1,3)
     x1 = np.tile(v1,[2*n+n/4,1])
-    #v2 = np.array([1,0,0])[np.newaxis,:]
-    v2 = np.random.rand(1,3)
+    v2 = np.array([1,0,0])[np.newaxis,:]
+    #v2 = np.random.rand(1,3)
     x2 = np.tile(v2,[n/4,1])
-    #v3 = np.array([0,1,0])[np.newaxis,:]
-    v3 = np.random.rand(1,3)
+    v3 = np.array([0,1,0])[np.newaxis,:]
+    #v3 = np.random.rand(1,3)
     x3 = np.tile(v3,[n/4,1])
-    #v4 = np.array([0,0,1])[np.newaxis,:]
-    v4 = np.random.rand(1,3)
+    v4 = np.array([0,0,1])[np.newaxis,:]
+    #v4 = np.random.rand(1,3)
     x4 = np.tile(v4,[n+n/4,1])
     
     y1 = np.hstack((np.ones((1,2*n+n/4)),np.zeros((1,n+3*n//4))))
@@ -132,16 +132,19 @@ def run2():
 
     x1 = np.vstack((x1,x2))
     x2 = np.vstack((x3,x4))
-    x = 10*np.vstack((x1,x2))
+    x = np.vstack((x1,x2))
     #perm = np.random.permutation(np.eye(4*n))
     #x = np.matmul(perm,x)
     #y = np.matmul(perm,np.matmul(y,perm.T))
     ''
     #clusterer = EMClusterer(data_params,k)
-    clusterer = GDKMeansClusterer(data_params,k)
+    clusterer = GDKMeansClusterer2(data_params,k)
     tf_clustering = clusterer.infer_clustering()
+    tf_membership = clusterer.history_list
     feed_dict = {clusterer.x:x}
     [clustering_history,cost_history,membership_history,grad_log] = sess.run([tf_clustering,clusterer.cost_log,clusterer.history_list,clusterer.grad_log],feed_dict=feed_dict)
+    #[clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
+    cost_history = []
     plotup(clustering_history,x,y,cost_history)
     last_cluster = clustering_history[-1]
     last_membership = membership_history[-1]

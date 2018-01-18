@@ -83,7 +83,7 @@ class GDKMeansClusterer1(BaseClusterer):
     @staticmethod
     def obj_f(b,x):
         b_probs = tf.nn.softmax(b,dim=1)
-        centroid_matrix = GDKMeansClusterer.get_centroid_matrix(b_probs,x)
+        centroid_matrix = GDKMeansClusterer1.get_centroid_matrix(b_probs,x)
         for i in range(4):
             centroid_matrix = tf.Print(centroid_matrix,[centroid_matrix[i]],"centroid_{}:".format(str(i)))
         ret = tf.norm(tf.matmul(b_probs,centroid_matrix)-x)**2
@@ -103,10 +103,10 @@ class GDKMeansClusterer1(BaseClusterer):
         #centroid_matrix = tf.Print(centroid_matrix,[check],message="check no. 98")
         return centroid_matrix
 
-class GDKMeansClusterer1(BaseClusterer):
+class GDKMeansClusterer2(BaseClusterer):
     ''' optimize over cluster centroids '''
-    def __init__(self,data_params,k,n_iters=50):
-        self.learn_rate = 10.
+    def __init__(self,data_params,k,n_iters=1):
+        self.learn_rate = .1
         self.curr_step = 0
         self.n_iters = n_iters
         self.k = k
@@ -116,70 +116,49 @@ class GDKMeansClusterer1(BaseClusterer):
         self.grad_log = []
         self.cost_log = []
     def init_params(self):
-        self.b = tf.random_normal([self.n,self.k],seed=2018) # membership matrix
-        #self.b = tf.constant(np.float32([[10,-10],[-10,10]])) # Optimizing over membership logits
-        #self.b = tf.zeros([self.n,self.k])
-        # debug init:
-        '''
-        n = 4*10
-        y1 = np.hstack((np.ones((1,2*n+n/4)),np.zeros((1,n+3*n//4))))
-        y2 = np.hstack((np.zeros((1,2*n+n/4)),np.ones((1,n/4))))
-        y2 = np.hstack((y2,np.zeros((1,n+n/2))))
-        y3 = np.hstack((np.zeros((1,2*n+n/2)),np.ones((1,n/4))))
-        y3 = np.hstack((y3,np.zeros((1,n+n/4))))
-        y4 = np.hstack((np.zeros((1,2*n+3*n/4)),np.ones((1,n+n/4))))
-        y1 = np.hstack((y1.T,y2.T))
-        y2 = np.hstack((y3.T,y4.T))
-        y = np.hstack((y1,y2))
-        self.b = tf.constant(y)
-        self.b = tf.cast(self.b,tf.float32)
-        '''
-        self.b = tf.Print(self.b,[self.b[0],self.b[1]],"Init Logits:")
-        self.history_list = [] # different self.b's across optimization
+        self.c = tf.random_normal([self.k,self.d],seed=2018) # centroid matrix
+        #self.c = self.x[0],self.x[90],self.x[105],self.x[-1]
+        self.c = tf.Print(self.c,[self.c[i] for i in range(4)],"Init centroids:")
+        self.history_list = [] # different membership matrices across optimization
     def update_params(self): # overrides super class method
         self.curr_step+=1
-        b_max = tf.reduce_mean(self.b,axis=1)[:,tf.newaxis]
-        self.b = self.b-b_max
-        self.b = tf.Print(self.b,[self.b[0,0],self.b[0,1],self.b[0,2],self.b[0,3]],"Before Update:")
-        
-        cost = self.obj_f(self.b,self.x)
+        self.c = tf.Print(self.c,[self.c[j] for j in range(4)],"centroids:")
+        cost = self.obj_f(self.c,self.x)
         self.cost_log.append(cost)
-        grads = tf.gradients(cost,self.b)[0]
+        grads = tf.gradients(cost,self.c)[0]
         grads = tf.Print(grads,[cost],"cost:")
-        for i in range(1):
+        for i in range(4):
             grads = tf.Print(grads,[grads[i]],"grads[{}]:".format(str(i)))
         grads = tf.Print(grads,[tf.reduce_sum(grads**2)],"grads_total:")
         #grads = tf.Print(grads,[cost],"cost:")
         self.grad_log+=[grads]
         #mu = self.learn_rate / np.sqrt(self.curr_step)
         mu = self.learn_rate
-        self.b = self.b-mu*grads # update
-        self.b = tf.Print(self.b,[self.b[0,0],self.b[0,1],self.b[0,2],self.b[0,3]],"After Update:")
-        self.b = tf.Print(self.b,[""],"--------{}--------".format(str(self.curr_step)))
-        b_log = tf.nn.softmax(self.b,dim=1) # from logits to distributions over clusters
-        self.history_list.append(b_log) # log
+        self.c = tf.Print(self.c,[self.c],"before")
+        self.c = self.c-mu*grads # update
+        self.c = tf.Print(self.c,[self.c],"after")
+        
+        self.c = tf.Print(self.c,[""],"--------{}--------".format(str(self.curr_step)))
+        self.history_list.append(self.get_membership_matrix(self.c,self.x)) # log
     @staticmethod
-    def obj_f(b,x):
-        b_probs = tf.nn.softmax(b,dim=1)
-        centroid_matrix = GDKMeansClusterer.get_centroid_matrix(b_probs,x)
-        for i in range(4):
-            centroid_matrix = tf.Print(centroid_matrix,[centroid_matrix[i]],"centroid_{}:".format(str(i)))
-        ret = tf.norm(tf.matmul(b_probs,centroid_matrix)-x)**2
+    def obj_f(c,x):
+        membership_matrix = GDKMeansClusterer2.get_membership_matrix(c,x)
+        corresponding_c = tf.matmul(membership_matrix,c)
+        ret = tf.reduce_sum((corresponding_c-x)**2)
         return ret
     @staticmethod
-    def get_centroid_matrix(b,x):
-        # returns [NUM_CLUSTERS,EMBED_DIM] tf tensor
-        #x = tf.Print(x,[x[0],x[-1],"|",b[0],b[1]],"x,b = ")
-        for i in range(1):
-            x = tf.Print(x,[b[i]],"b_probs[{}]:".format(str(i)))
-        clst_sz = tf.reduce_sum(b,axis=0)  # == tf.transpose(b)*tf.ones([n,1])
-        clst_sz = tf.Print(clst_sz,[clst_sz[i] for i in range(4)],message='cluster sizes:')
-        inv_sz = tf.matrix_inverse(tf.diag(clst_sz))
-        matmul_tmp = tf.matmul(inv_sz,tf.transpose(b))
-        centroid_matrix = tf.matmul(matmul_tmp,x)
-        check = tf.is_nan(tf.reduce_sum(centroid_matrix))
-        #centroid_matrix = tf.Print(centroid_matrix,[check],message="check no. 98")
-        return centroid_matrix
+    def get_membership_matrix(c,x):
+        # returns [n,k] tensor
+        k = 4 #todo
+        outer_subtraction= tf.subtract(x[:,:,None],tf.transpose(c),name='outer_subtraction') # [n,d,k]
+        distance_mat = tf.reduce_sum(outer_subtraction**2,axis=1) # [n,k]
+        distance_mat = tf.Print(distance_mat,[distance_mat[:5,:5]],"dist_mat:")
+        argmins = tf.argmin(distance_mat,axis=1)
+        argmins = tf.Print(argmins,[argmins],'argmins')
+        membership_mat = tf.one_hot(argmins,k)
+        for i in range(120):
+            membership_mat = tf.Print(membership_mat,[membership_mat[i][j] for j in range(4)],"beliefs{}:".format(str(i)))
+        return membership_mat
 class EMClusterer(BaseClusterer):
     def __init__(self,data_params,k,n_iters=50):
         self.n_iters = n_iters
