@@ -144,13 +144,22 @@ def run2():
     feed_dict = {clusterer.x:x}
     [clustering_history,cost_history,membership_history,grad_log] = sess.run([tf_clustering,clusterer.cost_log,clusterer.history_list,clusterer.grad_log],feed_dict=feed_dict)
     #[clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
-    cost_history = []
+    #cost_history = []
     plotup(clustering_history,x,y,cost_history)
     last_cluster = clustering_history[-1]
     last_membership = membership_history[-1]
 
     pdb.set_trace()
-
+def run3():
+    # test the new gdkmeans clusterer
+    n,d = 10,3
+    data_params = n,d
+    k = 4
+    x = np.random.rand(n,d)
+    clusterer = GDKMeansClusterer2(data_params,k)
+    tf_clustering = clusterer.infer_clustering()
+    feed_dict = {clusterer.x:x}
+    sess.run(tf_clustering,feed_dict=feed_dict)
 print('Starting TF Session')
 sess = tf.InteractiveSession()
 #sess = tf_debug.LocalCLIDebugWrapperSession(sess)

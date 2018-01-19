@@ -105,8 +105,8 @@ class GDKMeansClusterer1(BaseClusterer):
 
 class GDKMeansClusterer2(BaseClusterer):
     ''' optimize over cluster centroids '''
-    def __init__(self,data_params,k,n_iters=1):
-        self.learn_rate = .1
+    def __init__(self,data_params,k,n_iters=10):
+        self.learn_rate = .01
         self.curr_step = 0
         self.n_iters = n_iters
         self.k = k
@@ -122,7 +122,9 @@ class GDKMeansClusterer2(BaseClusterer):
         self.history_list = [] # different membership matrices across optimization
     def update_params(self): # overrides super class method
         self.curr_step+=1
-        self.c = tf.Print(self.c,[self.c[j] for j in range(4)],"centroids:")
+        for j in range(4):
+            self.c = tf.Print(self.c,[self.c[j]],"centroid{}:".format(str(j)))
+        self.c = self.clean_empty_centroids()
         cost = self.obj_f(self.c,self.x)
         self.cost_log.append(cost)
         grads = tf.gradients(cost,self.c)[0]
@@ -137,9 +139,43 @@ class GDKMeansClusterer2(BaseClusterer):
         self.c = tf.Print(self.c,[self.c],"before")
         self.c = self.c-mu*grads # update
         self.c = tf.Print(self.c,[self.c],"after")
-        
         self.c = tf.Print(self.c,[""],"--------{}--------".format(str(self.curr_step)))
         self.history_list.append(self.get_membership_matrix(self.c,self.x)) # log
+    def clean_empty_centroids(self):
+        self.membership_mat = self.get_membership_matrix(self.c,self.x)
+        cond = self.has_empty_centroid
+        body = self.replace_centroid
+        self.replace_mask = tf.zeros((self.k,self.d)) # init
+        self.c = tf.Print(self.c,[self.c],"Start cleaning loop")
+        wl = tf.while_loop(cond,body,[self.c])
+        wl = tf.Print(wl,[0],"End cleaning loop")
+        return wl
+    def replace_centroid(self,c): # cleaning loop body
+        k,d = self.k,self.d
+        replace_mask = self.replace_mask
+        rand_mat = tf.random_uniform((k,d))
+        #rand_mat = tf.constant(np.random.rand(k,d))
+        #rand_mat = tf.cast(rand_mat,tf.float32)
+        rand_mat = tf.Print(rand_mat,[tf.reduce_sum(replace_mask,0),tf.reduce_sum(replace_mask,0)],"replace_mask")
+        add = replace_mask*rand_mat
+        sub = replace_mask*c
+        sub = tf.Print(sub,[tf.reduce_sum(add,0)],'new centroid added:')
+        return c+add-sub
+    def has_empty_centroid(self,c): # cleaning loop cond
+        x = self.x
+        self.membership_mat = self.get_membership_matrix(c,x)
+        self.cluster_sums = tf.reduce_sum(self.membership_mat,axis=0)
+        self.cluster_sums = tf.Print(self.cluster_sums,[self.cluster_sums[0],self.cluster_sums[1],self.cluster_sums[2],self.cluster_sums[3]],"Cluster sums:")
+        ths = tf.constant(0.5)
+        clust_sums_clipped = tf.clip_by_value(self.cluster_sums,0,ths)
+        clust_sums_clipped = tf.Print(clust_sums_clipped,[clust_sums_clipped[0],clust_sums_clipped[1],clust_sums_clipped[2],clust_sums_clipped[3]],"clipped:")
+        avg = tf.reduce_mean(clust_sums_clipped)
+        bool_val = avg<ths # True iff one of the entries is below ths
+        replace_indicator = tf.one_hot(tf.argmin(clust_sums_clipped),self.k)[tf.newaxis,:]
+        replace_mask = tf.transpose(tf.tile(replace_indicator,[self.d,1]))
+        self.replace_mask = replace_mask
+        bool_val = tf.Print(bool_val,[bool_val],"has empty centroid?")
+        return bool_val
     @staticmethod
     def obj_f(c,x):
         membership_matrix = GDKMeansClusterer2.get_membership_matrix(c,x)
@@ -156,8 +192,10 @@ class GDKMeansClusterer2(BaseClusterer):
         argmins = tf.argmin(distance_mat,axis=1)
         argmins = tf.Print(argmins,[argmins],'argmins')
         membership_mat = tf.one_hot(argmins,k)
+        '''
         for i in range(120):
             membership_mat = tf.Print(membership_mat,[membership_mat[i][j] for j in range(4)],"beliefs{}:".format(str(i)))
+        '''
         return membership_mat
 class EMClusterer(BaseClusterer):
     def __init__(self,data_params,k,n_iters=50):
