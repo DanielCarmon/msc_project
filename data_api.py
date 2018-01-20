@@ -56,10 +56,11 @@ def add_object(x,D='rects'):
     else:
         return NotImplemented
 def get_background_mask(y):
-    bg = np.zeros(y[0].shape[:2])
+    bg = np.ones(y[0].shape[:2])
+    pdb.set_trace()
     for mask in y:
-        bg+=np.max(mask,2)
-    return 1-bg
+        bg*=1-np.max(mask,2)
+    return bg
 def combine_masks(y):
     # args:
     #   - y: list of dxd binary mask matrices
@@ -188,12 +189,6 @@ def scatter_2d(x,indices=None):
     plt.show()
 def scatter_3d(x,indices=None):
     if id(indices)!=id(None): indices = np.array(indices)
-    def randrange(n, vmin, vmax):
-        '''
-        Helper function to make an array of random numbers having shape (n, )
-        with each number distributed Uniform(vmin, vmax).
-        '''
-        return (vmax - vmin)*np.random.rand(n) + vmin
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     if id(indices)!=id(None):
@@ -206,7 +201,7 @@ def scatter_3d(x,indices=None):
     else:
         xs,ys,zs = x[:,0],x[:,1],x[:,2]
         ax.scatter(xs,ys,zs,marker='o')
-    plt.show()
+    #plt.show()
 def scatter(x,indices=None):
     d = x.shape[1]
     if d == 2:
@@ -246,7 +241,8 @@ def get_clst_mat(y,flag):
         return get_clst_mat_frommask(y)
 def noisify(x):
     shape = x.shape
-    eps = 0.1
+    #eps = 0.1
+    eps = 10
     noise = np.random.normal(0,eps,shape)
     return x+noise
 def flip_noisify(arr,flip_ratio=0.2):
