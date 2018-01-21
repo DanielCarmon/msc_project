@@ -152,19 +152,6 @@ def plotup(clustering,x,y,more):
     print 'meow2'
 def run2():
     global embedder,clusterer,tf_clustering,data_params,k
-    '''
-    n,d = 2*1,3
-    k = 2
-    data_params = n,d
-    v1 = np.array([0,0,0])[np.newaxis,:]
-    x1 = np.tile(v1,[n/2,1])
-    v2 = np.array([1,0,0])[np.newaxis,:]
-    x2 = np.tile(v2,[n/2,1])
-    x = np.vstack((x1,x2))
-    y1 = np.hstack((np.ones((1,n/2)),np.zeros((1,n/2))))
-    y2 = np.hstack((np.zeros((1,n/2)),np.ones((1,n/2))))
-    y = y1.T*y1+y2.T*y2
-    '''
     n,d = 4*10,3
     k = 4
     data_params = 4*n,d
@@ -213,13 +200,26 @@ def run2():
     pdb.set_trace()
 def run3():
     # check gradient flow through clusterers.
-    pass
+    global embedder,clusterer,tf_clustering,data_params,k
+    n,d = 100,3
+    data_params = n,d
+    x = np.random.rand(n,d)
+    y = np.zeros((n,1))
+    
+    embedder = ProjectionEmbedder(data_params)
+    model = Model(data_params,0,embedder)
+    step = model.train_step
+    feed_dict = {model.x:x,model.y:y}
+    sess.run(tf.global_variables_initializer())
+    for i in range(1000):
+        sess.run(step,feed_dict=feed_dict)
+    pdb.set_trace()
+    
 print('Starting TF Session')
 sess = tf.InteractiveSession()
 #sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 #sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-init1()
-run1()
+run3()
 print 'finish'
 """
 # plot approximately how good is each hypothesis.

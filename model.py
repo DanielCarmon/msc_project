@@ -243,19 +243,7 @@ class BaseEmbedder():
     def __init__(self):
         pass
     def embed(self):
-        pass
-class ProjectionEmbedder(BaseEmbedder):
-    def __init__(self,data_params):
-        self.n,self.d = tuple(data_params)
-        self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
-        self.init_params() # TF trainable Variable
-        self.x_new = self.embed()
-    def init_params(self):
-        self.params = tf.get_variable("embedding_matrix",[self.d,1])
-    def embed(self):
-        w = self.params
-        ret = tf.matmul(self.x,w)
-        return ret        
+        pass  
 class ImgEmbedder(BaseEmbedder):
     def __init__(self,data_params):
         self.img_dim,self.c = tuple(data_params)
@@ -296,10 +284,30 @@ class DeepSetEmbedder(BaseEmbedder):
         
     def embed(self):
         return NotImplemented
+class ProjectionEmbedder(BaseEmbedder):
+    def __init__(self,data_params):
+        self.n,self.d = tuple(data_params)
+        self.init_params() # TF trainable Variable
+        #self.x_new = self.embed()
+    def init_params(self):
+        self.params = tf.get_variable("embedding_matrix",[self.d,1])
+    def embed(self,x):
+        w = self.params
+        w = tf.Print(w,[w],"params:")
+        ret = tf.matmul(x,w)
+        return ret     
 class Model():
-    def __init__(self,data_params,k):
-        self.embedder = 0
-        self.clusterer = 0
+    optimizer = tf.train.AdamOptimizer(1)
+    def __init__(self,data_params,k,embedder=None,clusterer=None):
+        self.embedder = embedder
+        self.clusterer = clusterer
         self.n,self.d = tuple(data_params)
         self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
-        
+        self.y = tf.placeholder(tf.float32,[self.n,1]) # @4debug
+        x_embed = self.embedder.embed(self.x)
+        x_embed = tf.Print(x_embed,[x_embed],"x_embed:")
+        self.loss = self.loss_func(x_embed,self.y)
+        self.train_step = self.optimizer.minimize(self.loss)
+    @staticmethod
+    def loss_func(x_embed,y):
+        return tf.reduce_sum((x_embed-y)**2)
