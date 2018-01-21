@@ -105,7 +105,7 @@ class GDKMeansClusterer1(BaseClusterer):
 
 class GDKMeansClusterer2(BaseClusterer):
     ''' optimize over cluster centroids '''
-    def __init__(self,data_params,k,n_iters=100):
+    def __init__(self,data_params,k,n_iters=150):
         self.learn_rate = .001
         self.curr_step = 0
         self.n_iters = n_iters
