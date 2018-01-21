@@ -36,9 +36,9 @@ def binary_display(a,title = ""):
         img.show(title)
 def display(a):
     misc.imshow(a)
-c = 0
+global_color_coord = 0
 def add_object(x,D='rects'):
-    global c
+    global global_color_coord
     if D=='rects':
         # adds a colored rectangle to p
         d = x.shape[0]
@@ -47,17 +47,16 @@ def add_object(x,D='rects'):
         miny,maxy,minx,maxx = min(corner1[1],corner2[1]),max(corner1[1],corner2[1]),min(corner1[0],corner2[0]),max(corner1[0],corner2[0])
         #c = rand(0,3) # color
         x[minx:maxx,miny:maxy] = 0
-        x[minx:maxx,miny:maxy,c] = 1
+        x[minx:maxx,miny:maxy,global_color_coord] = 1
         obj = np.zeros((d,d,3))
-        obj[minx:maxx,miny:maxy,c] = 1
-        c+=1
-        c%=3
+        obj[minx:maxx,miny:maxy,global_color_coord] = 1
+        #c+=1
+        #c%=3
         return obj
     else:
         return NotImplemented
 def get_background_mask(y):
     bg = np.ones(y[0].shape[:2])
-    pdb.set_trace()
     for mask in y:
         bg*=1-np.max(mask,2)
     return bg
@@ -67,18 +66,28 @@ def combine_masks(y):
     # output:
     #   - ret: (d^2)x(d^2) binary is-same-cluster matrix
     d = len(y[0])
-    ret = np.zeros((d**2,d**2))
-    for mask in y:
-        mask_vec = np.reshape(np.sum(mask,axis=2),(d**2,1))
-        ret += mask_vec*mask_vec.T
-    return ret
+    ret = np.ones((d**2,d**2))
+    latest = np.ones((d,d))
+    #mask_log,tmp_log,mask_vec_log = [],[],[]
+    i = 0
+    #pdb.set_trace()
+    for mask in y[::-1]:
+        tmp = np.sum(mask,axis=2)
+        tmp *= latest # remove previously seen pixels
+        mask_vec = np.reshape(tmp,(d**2,1))
+        #mask_log.append(mask),tmp_log.append(tmp),mask_vec_log.append(mask_vec)
+        i+=1
+        ret *= 1-mask_vec*mask_vec.T
+        latest *= 1-tmp
+    print ret
+    return 1-ret
 def get_img(n,k=1,d=28,exact_count=True):
     """
-    Returns n labeled data points
-    Start with rgb squares
+    Returns n images made of rgb squares
     label: segmentation mask
     k = avg num of obj. if exact_count then k == num objs
     """
+    global global_color_coord
     xs = np.zeros((n,d,d,3))
     ys = []
     for x in xs:
@@ -88,15 +97,26 @@ def get_img(n,k=1,d=28,exact_count=True):
         obj_ind=1
         i=1
         while obj_ind<num_objects+1:
+            #print '----- loop iter ------'
+            global_color_coord+=1
+            global_color_coord%=3
+            #print 'adding object of color:',global_color_coord
             new_mask = add_object(x)
-            new_mask_flat = np.sum(new_mask,axis=2)
-            masks *= (1-new_mask_flat)
-            new = (i)*new_mask_flat
-            masks+=new # book-keeping 
             y.append(new_mask)
             #print(np.unique(masks))
+
+            # book-keeping
+            new_mask_flat = np.sum(new_mask,axis=2)
+            masks *= (1-new_mask_flat) 
+            new = (i)*new_mask_flat
+            masks+=new
+            
             old = obj_ind
             obj_ind = len(np.unique(masks))
+            if not old<obj_ind:
+                #print 'nothing new'
+                global_color_coord-=1
+                global_color_coord%=3
             i+=1
         #y = combine_masks(y)
         ys.append(y)
@@ -201,7 +221,7 @@ def scatter_3d(x,indices=None):
     else:
         xs,ys,zs = x[:,0],x[:,1],x[:,2]
         ax.scatter(xs,ys,zs,marker='o')
-    #plt.show()
+    plt.show()
 def scatter(x,indices=None):
     d = x.shape[1]
     if d == 2:
@@ -242,7 +262,7 @@ def get_clst_mat(y,flag):
 def noisify(x):
     shape = x.shape
     #eps = 0.1
-    eps = 10
+    eps = .15
     noise = np.random.normal(0,eps,shape)
     return x+noise
 def flip_noisify(arr,flip_ratio=0.2):

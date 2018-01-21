@@ -5,7 +5,7 @@ from model import *
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 from tqdm import tqdm
-import datetime
+from datetime import datetime
 import pdb
 import inspect
 from tensorflow.python import debug as tf_debug
@@ -32,12 +32,14 @@ clusterer = None
 tf_clustering = None
 def init1():
     global embedder,clusterer,tf_clustering,data_params,k
-    k = 3 # num of rectangles to sample
-    d = 28 # img dim
+    #k = 3 # num of rectangles to sample
+    k = 3
+    #d = 28 # img dim
+    d = 40
     data_params = [d,3]
     embedder = ImgEmbedder(data_params)
-    #clusterer = GDKMeansClusterer([d**2,3],k+1,n_iters=150)
-    clusterer = EMClusterer([d**2,3],k+1,n_iters=50)
+    clusterer = GDKMeansClusterer2([d**2,3],k+1)
+    #clusterer = EMClusterer([d**2,3],k+1,n_iters=50)
     tf_clustering = clusterer.infer_clustering()
 def run1():
     global embedder,clusterer,tf_clustering,data_params,k
@@ -46,20 +48,38 @@ def run1():
     x,y = xs[0],ys[0] # (d,d,3) array , list of len==k
     bg = get_background_mask(y)
     bg_ = np.reshape(bg,(d**2,1))
-    y = combine_masks(y)
-    y+=bg_*bg_.T
+    #pdb.set_trace()
+    y_old = combine_masks(y)
+    y =y_old+bg_*bg_.T
+    #x = 10*x
+    x = noisify(x)
+    #x = 10*x
     x_new = sess.run(embedder.x_new,feed_dict={embedder.x:x})
+    #pdb.set_trace()
+    print('meow')
     x_new = noisify(x_new)
-    #clusterer = EMClusterer(x_new.shape,k+1)
-    clustering = sess.run(tf_clustering,feed_dict={clusterer.x:x_new})
-    last = clustering[-1]
-    #print 'Norm of difference:',np.linalg.norm(last-y)/(y.shape[0])**2
-    print 'Norm of difference:',np.linalg.norm(last-y)
-    plotup(clustering,x,y)
-def plotup(clustering,x,y,cost_log):
+    scatter_3d(x_new)
+    #plt.show()
+    pdb.set_trace()
+    #x_new = 30*x_new
+    #x_new = noisify(x_new)
+    #x_new = 10*x_new
+    #x_new = noisify(x_new)
+    #clusterer = GDKMeansClusterer2(data_params,k)
+    #tf_clustering = clusterer.infer_clustering()
+    tf_membership = clusterer.history_list
+    feed_dict = {clusterer.x:x_new}
+    [last_centroids,clustering_history,cost_history,membership_history,grad_log] = sess.run([clusterer.c,tf_clustering,clusterer.cost_log,clusterer.history_list,clusterer.grad_log],feed_dict=feed_dict)
+    #[clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
+    #cost_history = []
+    last_cluster = clustering_history[-1]
+    last_membership = membership_history[-1]
+    more = [last_membership,last_centroids,cost_history]
+    plotup(clustering_history,x_new,y,more)
+def plotup(clustering,x,y,more):
     import matplotlib.animation as anim
     import types
-
+    last_membership,last_centroids,_ = more
     fig = plt.figure()
     fig.add_subplot(2,2,1)
     img_last = Image.fromarray(clustering[-1]*255)
@@ -77,18 +97,59 @@ def plotup(clustering,x,y,cost_log):
     img = Image.fromarray(y*255)
     plt.imshow(img)
     plt.title('ground truth clustering')
-    fig.add_subplot(2,2,4)
-    #plt.imshow(x)
-    plt.plot(cost_log)
-    plt.title('cost trajectory')
-    last = clustering[-1]
-    #print 'Norm of difference:',np.linalg.norm(last-y)/(y.shape[0])**2
-    print 'Norm of difference:',np.linalg.norm(last-y)
-    #ani.save('./animation.gif',writer='imagemagick',fps=30)
-    #fig.save('/tmp/fig.gif', writer='imagemagick', fps=30)
-    
-    plt.show()
+    ax = fig.add_subplot(2,2,4,projection='3d')
+    # show 3d scatter of data vectors:
     #pdb.set_trace()
+    indices = np.argmax(last_membership,1)
+    #indices = np.array(indices)
+    cs = ['r','b','g','k','c']
+    for i in range(4):
+        c = cs[i]
+        points = x[indices==i]
+        xs,ys,zs = list(points[:,0]),list(points[:,1]),list(points[:,2])
+        ax.scatter(xs,ys,zs,c=c,marker='o')
+    # plot centroid:
+    c=cs[4]
+    xs,ys,zs = list(last_centroids[:,0]),list(last_centroids[:,1]),list(last_centroids[:,2])
+    ax.scatter(xs,ys,zs,c=c,marker='o')
+    #plt.imshow(x)
+    plt.title('data')
+    #plt.xlim((-20,20))
+    #plt.ylim((-20,20))
+    #plt.zlim((-20,20))
+    #plt.plot(cost_log)
+    #plt.title('cost trajectory')
+    last_clustering = clustering[-1]
+    #print 'Avg. norm of difference:',np.linalg.norm(last-y)/(y.shape[0])**2
+    print 'Norm of difference:',np.linalg.norm(last_clustering-y)
+    print "Sanity check:",np.linalg.norm(last_clustering.T-last_clustering),np.linalg.norm(y.T-y)
+    ts = str(datetime.today())
+    #ani.save('./animation{}.gif'.format(ts),writer='imagemagick',fps=10)
+    #fig.save('/tmp/fig.gif', writer='imagemagick', fps=30)
+    print 'meow1'
+    """
+    pdb.set_trace()
+    for i in range(784):
+        if np.linalg.norm(y[i]-last_clustering[i])>1e-10:
+            print 'at disagreement'
+            print i,list(x[i]),last_centroids[indices[i]],indices[i]
+            #pdb.set_trace()
+    x_round = np.round(x)
+    for i in range(784):
+        for j in range(784):
+            norm = np.linalg.norm(x_round[i]-x_round[j])
+            sim = norm<0.5
+            same_clst = bool(y[i][j])
+            if sim!=same_clst:
+                print False,i,j
+    #    #print list(y[i])
+    #    #print list(last_clustering[i])
+    """
+    try:
+        plt.show()
+    except AttributeError:
+        pdb.set_trace()
+    print 'meow2'
 def run2():
     global embedder,clusterer,tf_clustering,data_params,k
     '''
@@ -151,20 +212,15 @@ def run2():
 
     pdb.set_trace()
 def run3():
-    # test the new gdkmeans clusterer
-    n,d = 10,3
-    data_params = n,d
-    k = 4
-    x = np.random.rand(n,d)
-    clusterer = GDKMeansClusterer2(data_params,k)
-    tf_clustering = clusterer.infer_clustering()
-    feed_dict = {clusterer.x:x}
-    sess.run(tf_clustering,feed_dict=feed_dict)
+    # check gradient flow through clusterers.
+    pass
 print('Starting TF Session')
 sess = tf.InteractiveSession()
 #sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 #sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-run2()
+init1()
+run1()
+print 'finish'
 """
 # plot approximately how good is each hypothesis.
 #from pylab import *
