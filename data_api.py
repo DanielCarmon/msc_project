@@ -207,7 +207,7 @@ def scatter_2d(x,indices=None):
         xs,ys = x[:,0],x[:,1]
         ax.scatter(xs,ys,marker='o')
     plt.show()
-def scatter_3d(x,indices=None):
+def scatter_3d(x,indices=None,title=None):
     if id(indices)!=id(None): indices = np.array(indices)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -218,9 +218,12 @@ def scatter_3d(x,indices=None):
             points = x[indices==i]    
             xs,ys,zs = points[:,0],points[:,1],points[:,2]
             ax.scatter(xs,ys,zs,c=c,marker='o')
+            
     else:
         xs,ys,zs = x[:,0],x[:,1],x[:,2]
         ax.scatter(xs,ys,zs,marker='o')
+    ax.set_xlabel('x');ax.set_ylabel('y');ax.set_zlabel('z');
+    if title!=None: plt.title(title)
     plt.show()
 def scatter(x,indices=None):
     d = x.shape[1]

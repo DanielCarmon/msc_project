@@ -5,13 +5,14 @@ from nn import *
 import pdb
 from tqdm import tqdm
 
+def nan_alarm(x):
+    return tf.Print(x,[tf.is_nan(tf.reduce_sum(x))],"{} Nan?".format(x.name))
 class BaseClusterer():
     def infer_clustering(self):
-        x = self.x
         for i in tqdm(range(self.n_iters),desc = "Building {} Layers".format(self.__class__.__name__)):
-            self.update_params()
+            self.update_params()            
         history_tensor = tf.convert_to_tensor(self.history_list) # [n_iters,n,k] tensor of membership matrices
-        history_tensor = tf.Print(history_tensor,[0],"Finished Parameter Updates")
+        #history_tensor = tf.Print(history_tensor,[0],"Finished Parameter Updates")
         self.pred = self.get_clustering_matrices(history_tensor) # [n_iters,n,n] tensor of similarity matrices
         self.pred = tf.identity(self.pred,name="PredictionHistory")
         return self.pred
@@ -33,10 +34,11 @@ class GDKMeansClusterer1(BaseClusterer):
         self.n_iters = n_iters
         self.k = k
         self.n,self.d = tuple(data_params)
-        self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
         self.init_params() #TF constants for inner-optimization
         self.grad_log = []
         self.cost_log = []
+    def set_data(self,x):
+        self.x = x
     def init_params(self):
         self.b = tf.random_normal([self.n,self.k],seed=2018) # membership matrix
         #self.b = tf.constant(np.float32([[10,-10],[-10,10]])) # Optimizing over membership logits
@@ -105,17 +107,18 @@ class GDKMeansClusterer1(BaseClusterer):
 
 class GDKMeansClusterer2(BaseClusterer):
     ''' optimize over cluster centroids '''
-    def __init__(self,data_params,k,n_iters=100):
+    def __init__(self,data_params,k,n_iters=30):
         self.learn_rate = .001
         self.curr_step = 0
         self.n_iters = n_iters
         self.k = k
         GDKMeansClusterer2.k = k # todo: fix this
         self.n,self.d = tuple(data_params)
-        self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
         self.init_params() #TF constants for inner-optimization
         self.grad_log = []
         self.cost_log = []
+    def set_data(self,x):
+        self.x = x
     def init_params(self):
         self.c = tf.random_normal([self.k,self.d],seed=2018) # centroid matrix
         #self.c = self.x[0],self.x[90],self.x[105],self.x[-1]
@@ -125,31 +128,38 @@ class GDKMeansClusterer2(BaseClusterer):
         self.curr_step+=1
         #for j in range(4):
         #    self.c = tf.Print(self.c,[self.c[j]],"centroid{}:".format(str(j)))
-        self.c = self.clean_empty_centroids()
+        #self.c = self.c+tf.reduce_sum(self.x)
+        ""
+        #self.c = self.clean_empty_centroids()
+        #self.c = nan_alarm(self.c)
+        for i in range(3):
+            self.c = tf.Print(self.c,[self.c[i]],"centroid{}".format(str(i)))
+        self.x = tf.Print(self.x,[self.x],"x:")
+        self.x = tf.Print(self.x,[self.x],"x:")
+        
         cost = self.obj_f(self.c,self.x)
+        cost = tf.Print(cost,[cost,self.x],'cost')
         self.cost_log.append(cost)
+        #cost = nan_alarm(cost)
         grads = tf.gradients(cost,self.c)[0]
-        grads = tf.Print(grads,[cost],"cost:")
-        #for i in range(4):
-        #    grads = tf.Print(grads,[grads[i]],"grads[{}]:".format(str(i)))
-        grads = tf.Print(grads,[tf.reduce_sum(grads**2)],"grads_total:")
-        #grads = tf.Print(grads,[cost],"cost:")
+        #grads = nan_alarm(grads)
         self.grad_log+=[grads]
         #mu = self.learn_rate / np.sqrt(self.curr_step)
         mu = self.learn_rate
-        self.c = tf.Print(self.c,[self.c],"before")
+        #self.c = tf.Print(self.c,[self.c],"before")
         self.c = self.c-mu*grads # update
-        self.c = tf.Print(self.c,[self.c],"after")
-        self.c = tf.Print(self.c,[""],"--------{}--------".format(str(self.curr_step)))
+        #self.c = tf.Print(self.c,[self.c],"after")
+        #self.c = tf.Print(self.c,[""],"--------{}--------".format(str(self.curr_step)))
+        ""
         self.history_list.append(self.get_membership_matrix(self.c,self.x)) # log
     def clean_empty_centroids(self):
         self.membership_mat = self.get_membership_matrix(self.c,self.x)
         cond = self.has_empty_centroid
         body = self.replace_centroid
         self.replace_mask = tf.zeros((self.k,self.d)) # init
-        self.c = tf.Print(self.c,[self.c],"Start cleaning loop")
+        #self.c = tf.Print(self.c,[self.c],"Start cleaning loop")
         wl = tf.while_loop(cond,body,[self.c])
-        wl = tf.Print(wl,[0],"End cleaning loop")
+        #wl = tf.Print(wl,[0],"End cleaning loop")
         return wl
     def replace_centroid(self,c): # cleaning loop body
         k,d = self.k,self.d
@@ -157,17 +167,17 @@ class GDKMeansClusterer2(BaseClusterer):
         rand_mat = tf.random_uniform((k,d))
         #rand_mat = tf.constant(np.random.rand(k,d))
         #rand_mat = tf.cast(rand_mat,tf.float32)
-        rand_mat = tf.Print(rand_mat,[tf.reduce_sum(replace_mask,0),tf.reduce_sum(replace_mask,0)],"replace_mask")
+        #rand_mat = tf.Print(rand_mat,[tf.reduce_sum(replace_mask,0),tf.reduce_sum(replace_mask,0)],"replace_mask")
         add = replace_mask*rand_mat
         sub = replace_mask*c
-        sub = tf.Print(sub,[tf.reduce_sum(add,0)],'new centroid added:')
+        #sub = tf.Print(sub,[tf.reduce_sum(add,0)],'new centroid added:')
         return c+add-sub
     def has_empty_centroid(self,c): # cleaning loop cond
         x = self.x
         self.membership_mat = self.get_membership_matrix(c,x)
         self.cluster_sums = tf.reduce_sum(self.membership_mat,axis=0)
         #self.cluster_sums = tf.Print(self.cluster_sums,[self.cluster_sums[0],self.cluster_sums[1],self.cluster_sums[2],self.cluster_sums[3]],"Cluster sums:")
-        ths = tf.constant(0.5)
+        ths = tf.constant(1.)
         clust_sums_clipped = tf.clip_by_value(self.cluster_sums,0,ths)
         #clust_sums_clipped = tf.Print(clust_sums_clipped,[clust_sums_clipped[0],clust_sums_clipped[1],clust_sums_clipped[2],clust_sums_clipped[3]],"clipped:")
         avg = tf.reduce_mean(clust_sums_clipped)
@@ -175,7 +185,7 @@ class GDKMeansClusterer2(BaseClusterer):
         replace_indicator = tf.one_hot(tf.argmin(clust_sums_clipped),self.k)[tf.newaxis,:]
         replace_mask = tf.transpose(tf.tile(replace_indicator,[self.d,1]))
         self.replace_mask = replace_mask
-        bool_val = tf.Print(bool_val,[bool_val],"has empty centroid?")
+        #bool_val = tf.Print(bool_val,[bool_val],"has empty centroid?")
         return bool_val
     @staticmethod
     def obj_f(c,x):
@@ -186,17 +196,21 @@ class GDKMeansClusterer2(BaseClusterer):
     @staticmethod
     def get_membership_matrix(c,x):
         # returns [n,k] tensor
-        #k = 4 #Todo: fix this
         k = GDKMeansClusterer2.k
         outer_subtraction= tf.subtract(x[:,:,None],tf.transpose(c),name='outer_subtraction') # [n,d,k]
         distance_mat = tf.reduce_sum(outer_subtraction**2,axis=1) # [n,k]
-        distance_mat = tf.Print(distance_mat,[distance_mat[:5,:5]],"dist_mat:")
+        #distance_mat = tf.Print(distance_mat,[distance_mat[:5,:5]],"dist_mat:")
+        inv_tmp = 1 # control softmax sharpness
+        membership_mat = tf.nn.softmax(inv_tmp*(-distance_mat),1)
+        '''
+        # non-differentiable:
         argmins = tf.argmin(distance_mat,axis=1)
-        argmins = tf.Print(argmins,[argmins],'argmins')
+        #argmins = tf.Print(argmins,[argmins],'argmins')
         membership_mat = tf.one_hot(argmins,k)
         '''
-        for i in range(120):
-            membership_mat = tf.Print(membership_mat,[membership_mat[i][j] for j in range(4)],"beliefs{}:".format(str(i)))
+        '''
+        for i in range(300):
+            membership_mat = tf.Print(membership_mat,[membership_mat[i][j] for j in range(3)],"beliefs{}:".format(str(i)))
         '''
         return membership_mat
 class EMClusterer(BaseClusterer):
@@ -204,8 +218,10 @@ class EMClusterer(BaseClusterer):
         self.n_iters = n_iters
         self.k = k
         self.n,self.d = tuple(data_params)
-        self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
+        #self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
         self.init_params() #TF constants for inner-optimization
+    def set_data(self,x):
+        self.x = x
     def init_params(self):
         self.theta = tf.random_normal([self.k,self.d],seed=2017,name='theta_0')
         #self.theta = tf.constant(np.float32([[0.,1],[1.,0.]]))
@@ -218,26 +234,26 @@ class EMClusterer(BaseClusterer):
         self.history_list.append(self.z) # log
     @staticmethod
     def infer_theta(x,z):
-        x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
+        #x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
         clust_sums = tf.matmul(tf.transpose(z),x,name='clust_sums') # [k,d]
-        clust_sums = tf.Print(clust_sums,[clust_sums],"clust_sums")
+        #clust_sums = tf.Print(clust_sums,[clust_sums],"clust_sums")
         clust_sz = tf.reduce_sum(z,axis=0,name='clust_sz') # [k]
-        clust_sz = tf.Print(clust_sz,[clust_sz],"clust_sz")
+        #clust_sz = tf.Print(clust_sz,[clust_sz],"clust_sz")
         normalizer = tf.matrix_inverse(tf.diag(clust_sz),name='normalizer') # [k,k]
-        normalizer = tf.Print(normalizer,[normalizer[0],normalizer[1]],"normalizer:")
+        #normalizer = tf.Print(normalizer,[normalizer[0],normalizer[1]],"normalizer:")
         theta = tf.matmul(normalizer,clust_sums) # [k,d] soft centroids
-        theta = tf.Print(theta,[theta[0],theta[1]],"inferred Theta:")
+        #theta = tf.Print(theta,[theta[0],theta[1]],"inferred Theta:")
         return theta
     @staticmethod
     def infer_z(x,theta):
-        x = tf.Print(x,[x[0],x[1],"|",theta[0],theta[1]],"Entered infer_z func with x,theta = ")
+        #x = tf.Print(x,[x[0],x[1],"|",theta[0],theta[1]],"Entered infer_z func with x,theta = ")
         outer_subtraction = tf.subtract(x[:,:,None],tf.transpose(theta),name='out_sub') # [n,d,k]
         z = -tf.reduce_sum(outer_subtraction**2,axis=1) # [n,k]
         # numerically stable calculation:
         z = z-tf.reduce_mean(z,axis=1)[:,None]
         z = tf.nn.softmax(z/2,dim=1)
         #check = tf.is_nan(tf.reduce_sum(z))
-        z = tf.Print(z,[z[0],z[1]],"inferred Z:")
+        #z = tf.Print(z,[z[0],z[1]],"inferred Z:")
         return z
 class BaseEmbedder():
     def __init__(self):
@@ -288,12 +304,13 @@ class ProjectionEmbedder(BaseEmbedder):
     def __init__(self,data_params):
         self.n,self.d = tuple(data_params)
         self.init_params() # TF trainable Variable
+        self.param_history = []
         #self.x_new = self.embed()
     def init_params(self):
         self.params = tf.get_variable("embedding_matrix",[self.d,1])
     def embed(self,x):
         w = self.params
-        w = tf.Print(w,[w],"params:")
+        #w = tf.Print(w,[w],"params:")
         ret = tf.matmul(x,w)
         return ret     
 class Model():
@@ -303,11 +320,24 @@ class Model():
         self.clusterer = clusterer
         self.n,self.d = tuple(data_params)
         self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
-        self.y = tf.placeholder(tf.float32,[self.n,1]) # @4debug
+        self.x = tf.cast(self.x,tf.float32)
+        self.y = tf.placeholder(tf.float32,[self.n,self.n])
+        self.y = tf.cast(self.y,tf.float32)
         x_embed = self.embedder.embed(self.x)
         x_embed = tf.Print(x_embed,[x_embed],"x_embed:")
-        self.loss = self.loss_func(x_embed,self.y)
+        self.clusterer.set_data(x_embed)
+        self.clustering = self.clusterer.infer_clustering()
+        #self.loss = self.stam(self.clustering,self.y)
+        self.loss = self.loss_func(self.clustering,self.y)
+        self.loss = tf.convert_to_tensor(self.loss)
+        self.loss = tf.Print(self.loss,[self.loss],'loss1:')
+        self.loss = tf.Print(self.loss,[self.loss],'loss2:')
+        self.loss = tf.identity(self.loss)
+        self.loss = tf.Print(self.loss,[self.loss],'loss3:')
         self.train_step = self.optimizer.minimize(self.loss)
     @staticmethod
-    def loss_func(x_embed,y):
-        return tf.reduce_sum((x_embed-y)**2)
+    def loss_func(y_pred,y):
+        return tf.reduce_sum((y_pred-y)**2)
+    @staticmethod
+    def stam(x,y):
+        return tf.reduce_sum(x)-tf.reduce_sum(y)
