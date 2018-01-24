@@ -205,41 +205,51 @@ def run3():
     k = 3
     n,d = k*100,3
     data_params = n,d
-    r = 2 # distance between gaussians
+    r = 4 # distance between gaussians
     rashit = np.ones(d)
     x1 = np.random.normal(0*rashit,1,(n/k,d))
     x2 = np.random.normal(r*rashit,1,(n/k,d))
-    x3 = np.random.normal((r**2)*rashit,1,(n/k,d))
+    x3 = np.random.normal((2*r)*rashit,1,(n/k,d))
     x = np.vstack((x1,x2))
     x = np.vstack((x,x3))
-    y = np.repeat(np.array([1.,0.]),[n/2,n/2])[np.newaxis,:]
-    y = np.matmul(y.T,y)
+    y1 = np.array([1.]*(n/3)+[0.]*(2*n/3))[np.newaxis,:]
+    y2 = np.array([0.]*(n/3)+[1.]*(n/3)+[0.]*(n/3))[np.newaxis,:]
+    y3 = np.array([0.]*(2*n/3)+[1.]*(n/3))[np.newaxis,:]
+    y = np.zeros((n,n))
+    y+= np.matmul(y1.T,y1)
+    y+= np.matmul(y2.T,y2)
+    y+= np.matmul(y3.T,y3)
+    
     embedder = ProjectionEmbedder(data_params)
     
     d_embed = 1
-    #data_params = n,d_embed
-    #clusterer = GDKMeansClusterer2((n,d_embed),k)
-    clusterer = EMClusterer((n,d_embed),k)
-    model = Model(data_params,0,embedder,clusterer)
+    clusterer = GDKMeansClusterer2((n,d_embed),k)
+    #clusterer = EMClusterer((n,d_embed),k)
+    model = Model(data_params,embedder,clusterer)
 
     param_history = []
+    loss_history = []
     step = model.train_step
     feed_dict = {model.x:x,model.y:y}
     sess.run(tf.global_variables_initializer())
-    n_steps = 35
+    n_steps = 200
     for i in range(n_steps):
         print 'at train step',i
-        _,x_embedd,membership_history = sess.run([step,model.x,clusterer.history_list],feed_dict=feed_dict)
+        _,membership_log,loss = sess.run([step,clusterer.history_list,model.loss],feed_dict=feed_dict)
+        loss_history.append(loss)
         param_history.append(sess.run(embedder.params))
-    last_membership = membership_history[-1]    
+    last_membership = membership_log[-1]    
     indices = np.argmax(last_membership,1)
+    plt.plot(loss_history)
+    plt.title('loss')
     title = "Clustered Data"
     scatter_3d(x,indices,title)
     title = "Projection Vector Updates"
     scatter_3d(np.reshape(param_history,(n_steps,3)),title=title)
     #scatter_3d()
+    print 'last projection:',param_history[-1]
     pdb.set_trace()
-    
+
 print('Starting TF Session')
 sess = tf.InteractiveSession()
 #sess = tf_debug.LocalCLIDebugWrapperSession(sess)

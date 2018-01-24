@@ -126,19 +126,16 @@ class GDKMeansClusterer2(BaseClusterer):
         self.history_list = [] # different membership matrices across optimization
     def update_params(self): # overrides super class method
         self.curr_step+=1
-        #for j in range(4):
-        #    self.c = tf.Print(self.c,[self.c[j]],"centroid{}:".format(str(j)))
-        #self.c = self.c+tf.reduce_sum(self.x)
         ""
         #self.c = self.clean_empty_centroids()
         #self.c = nan_alarm(self.c)
-        for i in range(3):
-            self.c = tf.Print(self.c,[self.c[i]],"centroid{}".format(str(i)))
-        self.x = tf.Print(self.x,[self.x],"x:")
-        self.x = tf.Print(self.x,[self.x],"x:")
+        #for i in range(3):
+        #    self.c = tf.Print(self.c,[self.c[i]],"centroid{}".format(str(i)))
+        #self.x = tf.Print(self.x,[self.x],"x:")
         
         cost = self.obj_f(self.c,self.x)
         cost = tf.Print(cost,[cost,self.x],'cost')
+        cost = tf.constant(1.)*cost
         self.cost_log.append(cost)
         #cost = nan_alarm(cost)
         grads = tf.gradients(cost,self.c)[0]
@@ -199,7 +196,7 @@ class GDKMeansClusterer2(BaseClusterer):
         k = GDKMeansClusterer2.k
         outer_subtraction= tf.subtract(x[:,:,None],tf.transpose(c),name='outer_subtraction') # [n,d,k]
         distance_mat = tf.reduce_sum(outer_subtraction**2,axis=1) # [n,k]
-        #distance_mat = tf.Print(distance_mat,[distance_mat[:5,:5]],"dist_mat:")
+        #distance_mat = tf.Print(distance_mat,[tf.shape(distance_mat),distance_mat],"dist_mat:",summarize=30)
         inv_tmp = 1 # control softmax sharpness
         membership_mat = tf.nn.softmax(inv_tmp*(-distance_mat),1)
         '''
@@ -312,10 +309,11 @@ class ProjectionEmbedder(BaseEmbedder):
         w = self.params
         #w = tf.Print(w,[w],"params:")
         ret = tf.matmul(x,w)
-        return ret     
+        return ret
 class Model():
-    optimizer = tf.train.AdamOptimizer(1)
-    def __init__(self,data_params,k,embedder=None,clusterer=None):
+    optimizer = tf.train.AdamOptimizer(0.1)
+    #optimizer = tf.train.GradientDescentOptimizer(0.01)
+    def __init__(self,data_params,embedder=None,clusterer=None):
         self.embedder = embedder
         self.clusterer = clusterer
         self.n,self.d = tuple(data_params)
@@ -324,20 +322,22 @@ class Model():
         self.y = tf.placeholder(tf.float32,[self.n,self.n])
         self.y = tf.cast(self.y,tf.float32)
         x_embed = self.embedder.embed(self.x)
-        x_embed = tf.Print(x_embed,[x_embed],"x_embed:")
+        x_embed = tf.Print(x_embed,[x_embed],"x_embed:",summarize=10)
         self.clusterer.set_data(x_embed)
         self.clustering = self.clusterer.infer_clustering()
         #self.loss = self.stam(self.clustering,self.y)
         self.loss = self.loss_func(self.clustering,self.y)
-        self.loss = tf.convert_to_tensor(self.loss)
-        self.loss = tf.Print(self.loss,[self.loss],'loss1:')
-        self.loss = tf.Print(self.loss,[self.loss],'loss2:')
-        self.loss = tf.identity(self.loss)
-        self.loss = tf.Print(self.loss,[self.loss],'loss3:')
+        self.grads = tf.gradients(self.loss,embedder.params) # gradient
+        self.loss = tf.Print(self.loss,[self.loss],'loss:')
+        self.loss = tf.Print(self.loss,[self.grads],'gradient:',summarize=100)
+        self.loss = tf.constant(1.)*self.loss
         self.train_step = self.optimizer.minimize(self.loss)
     @staticmethod
     def loss_func(y_pred,y):
-        return tf.reduce_sum((y_pred-y)**2)
+        #y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)
+        tensor_shape = tf.shape(y_pred)
+        normalize = (tensor_shape[0]*tensor_shape[1]*tensor_shape[2])
+        return tf.reduce_sum((y_pred-y)**2)/tf.cast(normalize,tf.float32)
     @staticmethod
     def stam(x,y):
         return tf.reduce_sum(x)-tf.reduce_sum(y)
