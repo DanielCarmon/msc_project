@@ -1,6 +1,6 @@
 import tensorflow as tf
 from data_api import *
-#from model import Model
+# from model import Model
 from model import *
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
@@ -9,20 +9,24 @@ from datetime import datetime
 import pdb
 import inspect
 from tensorflow.python import debug as tf_debug
+
+
 def linenum():
     """ Returns current line number """
     return inspect.currentframe().f_back.f_lineno
-def trim(vec,digits=3):
-    factor = 10**digits
-    vec = np.round(vec*factor)/factor
+
+
+def trim(vec, digits=3):
+    factor = 10 ** digits
+    vec = np.round(vec * factor) / factor
     return vec
+
 
 # Experiments to test refactored model.py code
 # START
-#from pylab import *
+# from pylab import *
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from mpl_toolkits.mplot3d.axes3d import Axes3D
+
 rand = np.random.normal
 
 data_params = None
@@ -30,102 +34,109 @@ k = None
 embedder = None
 clusterer = None
 tf_clustering = None
+
+
 def init1():
-    global embedder,clusterer,tf_clustering,data_params,k
-    #k = 3 # num of rectangles to sample
+    global embedder, clusterer, tf_clustering, data_params, k
+    # k = 3 # num of rectangles to sample
     k = 3
-    #d = 28 # img dim
+    # d = 28 # img dim
     d = 40
-    data_params = [d,3]
+    data_params = [d, 3]
     embedder = ImgEmbedder(data_params)
-    clusterer = GDKMeansClusterer2([d**2,3],k+1)
-    #clusterer = EMClusterer([d**2,3],k+1,n_iters=50)
+    clusterer = GDKMeansClusterer2([d ** 2, 3], k + 1)
+    # clusterer = EMClusterer([d**2,3],k+1,n_iters=50)
     tf_clustering = clusterer.infer_clustering()
+
+
 def run1():
-    global embedder,clusterer,tf_clustering,data_params,k
+    global embedder, clusterer, tf_clustering, data_params, k
     d = data_params[0]
-    xs,ys = get_img(1,k,d)
-    x,y = xs[0],ys[0] # (d,d,3) array , list of len==k
+    xs, ys = get_img(1, k, d)
+    x, y = xs[0], ys[0]  # (d,d,3) array , list of len==k
     bg = get_background_mask(y)
-    bg_ = np.reshape(bg,(d**2,1))
-    #pdb.set_trace()
+    bg_ = np.reshape(bg, (d ** 2, 1))
+    # pdb.set_trace()
     y_old = combine_masks(y)
-    y =y_old+bg_*bg_.T
-    #x = 10*x
+    y = y_old + bg_ * bg_.T
+    # x = 10*x
     x = noisify(x)
-    #x = 10*x
-    x_new = sess.run(embedder.x_new,feed_dict={embedder.x:x})
-    #pdb.set_trace()
+    # x = 10*x
+    x_new = sess.run(embedder.x_new, feed_dict={embedder.x: x})
+    # pdb.set_trace()
     print('meow')
     x_new = noisify(x_new)
     scatter_3d(x_new)
-    #plt.show()
+    # plt.show()
     pdb.set_trace()
-    #x_new = 30*x_new
-    #x_new = noisify(x_new)
-    #x_new = 10*x_new
-    #x_new = noisify(x_new)
-    #clusterer = GDKMeansClusterer2(data_params,k)
-    #tf_clustering = clusterer.infer_clustering()
+    # x_new = 30*x_new
+    # x_new = noisify(x_new)
+    # x_new = 10*x_new
+    # x_new = noisify(x_new)
+    # clusterer = GDKMeansClusterer2(data_params,k)
+    # tf_clustering = clusterer.infer_clustering()
     tf_membership = clusterer.history_list
-    feed_dict = {clusterer.x:x_new}
-    [last_centroids,clustering_history,cost_history,membership_history,grad_log] = sess.run([clusterer.c,tf_clustering,clusterer.cost_log,clusterer.history_list,clusterer.grad_log],feed_dict=feed_dict)
-    #[clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
-    #cost_history = []
+    feed_dict = {clusterer.x: x_new}
+    [last_centroids, clustering_history, cost_history, membership_history, grad_log] = sess.run(
+        [clusterer.c, tf_clustering, clusterer.cost_log, clusterer.history_list, clusterer.grad_log],
+        feed_dict=feed_dict)
+    # [clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
+    # cost_history = []
     last_cluster = clustering_history[-1]
     last_membership = membership_history[-1]
-    more = [last_membership,last_centroids,cost_history]
-    plotup(clustering_history,x_new,y,more)
-def plotup(clustering,x,y,more):
+    more = [last_membership, last_centroids, cost_history]
+    plotup(clustering_history, x_new, y, more)
+
+
+def plotup(clustering, x, y, more):
     import matplotlib.animation as anim
-    import types
-    last_membership,last_centroids,_ = more
+    last_membership, last_centroids, _ = more
     fig = plt.figure()
-    fig.add_subplot(2,2,1)
-    img_last = Image.fromarray(clustering[-1]*255)
+    fig.add_subplot(2, 2, 1)
+    img_last = Image.fromarray(clustering[-1] * 255)
     plt.title('last prediction')
     plt.imshow(img_last)
-    ax1=fig.add_subplot(2,2,3)
-    ims=[]
+    ax1 = fig.add_subplot(2, 2, 3)
+    ims = []
     for time in xrange(np.shape(clustering)[0]):
-        im = ax1.imshow(clustering[time,:,:],cmap='gray')
+        im = ax1.imshow(clustering[time, :, :], cmap='gray')
         ims.append([im])
-    #run animation
-    ani = anim.ArtistAnimation(fig,ims, interval=100,blit=False)
+    # run animation
+    ani = anim.ArtistAnimation(fig, ims, interval=100, blit=False)
     plt.title('predicted clustering trajectory')
-    fig.add_subplot(2,2,2)
-    img = Image.fromarray(y*255)
+    fig.add_subplot(2, 2, 2)
+    img = Image.fromarray(y * 255)
     plt.imshow(img)
     plt.title('ground truth clustering')
-    ax = fig.add_subplot(2,2,4,projection='3d')
+    ax = fig.add_subplot(2, 2, 4, projection='3d')
     # show 3d scatter of data vectors:
-    #pdb.set_trace()
-    indices = np.argmax(last_membership,1)
-    #indices = np.array(indices)
-    cs = ['r','b','g','k','c']
+    # pdb.set_trace()
+    indices = np.argmax(last_membership, 1)
+    # indices = np.array(indices)
+    cs = ['r', 'b', 'g', 'k', 'c']
     for i in range(4):
         c = cs[i]
-        points = x[indices==i]
-        xs,ys,zs = list(points[:,0]),list(points[:,1]),list(points[:,2])
-        ax.scatter(xs,ys,zs,c=c,marker='o')
+        points = x[indices == i]
+        xs, ys, zs = list(points[:, 0]), list(points[:, 1]), list(points[:, 2])
+        ax.scatter(xs, ys, zs, c=c, marker='o')
     # plot centroid:
-    c=cs[4]
-    xs,ys,zs = list(last_centroids[:,0]),list(last_centroids[:,1]),list(last_centroids[:,2])
-    ax.scatter(xs,ys,zs,c=c,marker='o')
-    #plt.imshow(x)
+    c = cs[4]
+    xs, ys, zs = list(last_centroids[:, 0]), list(last_centroids[:, 1]), list(last_centroids[:, 2])
+    ax.scatter(xs, ys, zs, c=c, marker='o')
+    # plt.imshow(x)
     plt.title('data')
-    #plt.xlim((-20,20))
-    #plt.ylim((-20,20))
-    #plt.zlim((-20,20))
-    #plt.plot(cost_log)
-    #plt.title('cost trajectory')
+    # plt.xlim((-20,20))
+    # plt.ylim((-20,20))
+    # plt.zlim((-20,20))
+    # plt.plot(cost_log)
+    # plt.title('cost trajectory')
     last_clustering = clustering[-1]
-    #print 'Avg. norm of difference:',np.linalg.norm(last-y)/(y.shape[0])**2
-    print 'Norm of difference:',np.linalg.norm(last_clustering-y)
-    print "Sanity check:",np.linalg.norm(last_clustering.T-last_clustering),np.linalg.norm(y.T-y)
+    # print 'Avg. norm of difference:',np.linalg.norm(last-y)/(y.shape[0])**2
+    print 'Norm of difference:', np.linalg.norm(last_clustering - y)
+    print "Sanity check:", np.linalg.norm(last_clustering.T - last_clustering), np.linalg.norm(y.T - y)
     ts = str(datetime.today())
-    #ani.save('./animation{}.gif'.format(ts),writer='imagemagick',fps=10)
-    #fig.save('/tmp/fig.gif', writer='imagemagick', fps=30)
+    # ani.save('./animation{}.gif'.format(ts),writer='imagemagick',fps=10)
+    # fig.save('/tmp/fig.gif', writer='imagemagick', fps=30)
     print 'meow1'
     """
     pdb.set_trace()
@@ -150,110 +161,116 @@ def plotup(clustering,x,y,more):
     except AttributeError:
         pdb.set_trace()
     print 'meow2'
-def run2():
-    global embedder,clusterer,tf_clustering,data_params,k
-    n,d = 4*10,3
-    k = 4
-    data_params = 4*n,d
-    np.random.seed(2018)
-    v1 = np.array([0,0,0])[np.newaxis,:]
-    #v1 = np.random.rand(1,3)
-    x1 = np.tile(v1,[2*n+n/4,1])
-    v2 = np.array([1,0,0])[np.newaxis,:]
-    #v2 = np.random.rand(1,3)
-    x2 = np.tile(v2,[n/4,1])
-    v3 = np.array([0,1,0])[np.newaxis,:]
-    #v3 = np.random.rand(1,3)
-    x3 = np.tile(v3,[n/4,1])
-    v4 = np.array([0,0,1])[np.newaxis,:]
-    #v4 = np.random.rand(1,3)
-    x4 = np.tile(v4,[n+n/4,1])
-    
-    y1 = np.hstack((np.ones((1,2*n+n/4)),np.zeros((1,n+3*n//4))))
-    y2 = np.hstack((np.zeros((1,2*n+n/4)),np.ones((1,n/4))))
-    y2 = np.hstack((y2,np.zeros((1,n+n/2))))
-    y3 = np.hstack((np.zeros((1,2*n+n/2)),np.ones((1,n/4))))
-    y3 = np.hstack((y3,np.zeros((1,n+n/4))))
-    y4 = np.hstack((np.zeros((1,2*n+3*n/4)),np.ones((1,n+n/4))))
-    y = y1*y1.T+y2*y2.T+y3*y3.T+y4*y4.T
-    #pdb.set_trace()
 
-    x1 = np.vstack((x1,x2))
-    x2 = np.vstack((x3,x4))
-    x = np.vstack((x1,x2))
-    #perm = np.random.permutation(np.eye(4*n))
-    #x = np.matmul(perm,x)
-    #y = np.matmul(perm,np.matmul(y,perm.T))
+
+def run2():
+    global embedder, clusterer, tf_clustering, data_params, k
+    n, d = 4 * 10, 3
+    k = 4
+    data_params = 4 * n, d
+    np.random.seed(2018)
+    v1 = np.array([0, 0, 0])[np.newaxis, :]
+    # v1 = np.random.rand(1,3)
+    x1 = np.tile(v1, [2 * n + n / 4, 1])
+    v2 = np.array([1, 0, 0])[np.newaxis, :]
+    # v2 = np.random.rand(1,3)
+    x2 = np.tile(v2, [n / 4, 1])
+    v3 = np.array([0, 1, 0])[np.newaxis, :]
+    # v3 = np.random.rand(1,3)
+    x3 = np.tile(v3, [n / 4, 1])
+    v4 = np.array([0, 0, 1])[np.newaxis, :]
+    # v4 = np.random.rand(1,3)
+    x4 = np.tile(v4, [n + n / 4, 1])
+
+    y1 = np.hstack((np.ones((1, 2 * n + n / 4)), np.zeros((1, n + 3 * n // 4))))
+    y2 = np.hstack((np.zeros((1, 2 * n + n / 4)), np.ones((1, n / 4))))
+    y2 = np.hstack((y2, np.zeros((1, n + n / 2))))
+    y3 = np.hstack((np.zeros((1, 2 * n + n / 2)), np.ones((1, n / 4))))
+    y3 = np.hstack((y3, np.zeros((1, n + n / 4))))
+    y4 = np.hstack((np.zeros((1, 2 * n + 3 * n / 4)), np.ones((1, n + n / 4))))
+    y = y1 * y1.T + y2 * y2.T + y3 * y3.T + y4 * y4.T
+    # pdb.set_trace()
+
+    x1 = np.vstack((x1, x2))
+    x2 = np.vstack((x3, x4))
+    x = np.vstack((x1, x2))
+    # perm = np.random.permutation(np.eye(4*n))
+    # x = np.matmul(perm,x)
+    # y = np.matmul(perm,np.matmul(y,perm.T))
     ''
-    #clusterer = EMClusterer(data_params,k)
-    clusterer = GDKMeansClusterer2(data_params,k)
+    # clusterer = EMClusterer(data_params,k)
+    clusterer = GDKMeansClusterer2(data_params, k)
     tf_clustering = clusterer.infer_clustering()
     tf_membership = clusterer.history_list
-    feed_dict = {clusterer.x:x}
-    [clustering_history,cost_history,membership_history,grad_log] = sess.run([tf_clustering,clusterer.cost_log,clusterer.history_list,clusterer.grad_log],feed_dict=feed_dict)
-    #[clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
-    #cost_history = []
-    plotup(clustering_history,x,y,cost_history)
+    feed_dict = {clusterer.x: x}
+    [clustering_history, cost_history, membership_history, grad_log] = sess.run(
+        [tf_clustering, clusterer.cost_log, clusterer.history_list, clusterer.grad_log], feed_dict=feed_dict)
+    # [clustering_history,membership_history] = sess.run([tf_clustering,tf_membership],feed_dict=feed_dict) # for em
+    # cost_history = []
+    plotup(clustering_history, x, y, cost_history)
     last_cluster = clustering_history[-1]
     last_membership = membership_history[-1]
 
     pdb.set_trace()
+
+
 def run3():
     # check gradient flow through clusterers.
-    global embedder,clusterer,tf_clustering,data_params,k
-    
+    global embedder, clusterer, tf_clustering, data_params, k
+
     k = 3
-    n,d = k*100,3
-    data_params = n,d
-    r = 4 # distance between gaussians
+    n, d = k * 100, 3
+    data_params = n, d
+    r = 4  # distance between gaussians
     rashit = np.ones(d)
-    x1 = np.random.normal(0*rashit,1,(n/k,d))
-    x2 = np.random.normal(r*rashit,1,(n/k,d))
-    x3 = np.random.normal((2*r)*rashit,1,(n/k,d))
-    x = np.vstack((x1,x2))
-    x = np.vstack((x,x3))
-    y1 = np.array([1.]*(n/3)+[0.]*(2*n/3))[np.newaxis,:]
-    y2 = np.array([0.]*(n/3)+[1.]*(n/3)+[0.]*(n/3))[np.newaxis,:]
-    y3 = np.array([0.]*(2*n/3)+[1.]*(n/3))[np.newaxis,:]
-    y = np.zeros((n,n))
-    y+= np.matmul(y1.T,y1)
-    y+= np.matmul(y2.T,y2)
-    y+= np.matmul(y3.T,y3)
-    
+    x1 = np.random.normal(0 * rashit, 1, (n / k, d))
+    x2 = np.random.normal(r * rashit, 1, (n / k, d))
+    x3 = np.random.normal((2 * r) * rashit, 1, (n / k, d))
+    x = np.vstack((x1, x2))
+    x = np.vstack((x, x3))
+    y1 = np.array([1.] * (n / 3) + [0.] * (2 * n / 3))[np.newaxis, :]
+    y2 = np.array([0.] * (n / 3) + [1.] * (n / 3) + [0.] * (n / 3))[np.newaxis, :]
+    y3 = np.array([0.] * (2 * n / 3) + [1.] * (n / 3))[np.newaxis, :]
+    y = np.zeros((n, n))
+    y += np.matmul(y1.T, y1)
+    y += np.matmul(y2.T, y2)
+    y += np.matmul(y3.T, y3)
+
     embedder = ProjectionEmbedder(data_params)
-    
+
     d_embed = 1
-    clusterer = GDKMeansClusterer2((n,d_embed),k)
-    #clusterer = EMClusterer((n,d_embed),k)
-    model = Model(data_params,embedder,clusterer)
+    clusterer = GDKMeansClusterer2((n, d_embed), k)
+    # clusterer = EMClusterer((n,d_embed),k)
+    model = Model(data_params, embedder, clusterer)
 
     param_history = []
     loss_history = []
     step = model.train_step
-    feed_dict = {model.x:x,model.y:y}
+    feed_dict = {model.x: x, model.y: y}
     sess.run(tf.global_variables_initializer())
-    n_steps = 200
+    n_steps = 150
     for i in range(n_steps):
-        print 'at train step',i
-        _,membership_log,loss = sess.run([step,clusterer.history_list,model.loss],feed_dict=feed_dict)
+        print 'at train step', i
+        _, membership_log, loss = sess.run([step, clusterer.history_list, model.loss], feed_dict=feed_dict)
         loss_history.append(loss)
         param_history.append(sess.run(embedder.params))
-    last_membership = membership_log[-1]    
-    indices = np.argmax(last_membership,1)
+    last_membership = membership_log[-1]
+    indices = np.argmax(last_membership, 1)
     plt.plot(loss_history)
     plt.title('loss')
     title = "Clustered Data"
-    scatter_3d(x,indices,title)
+    scatter_3d(x, indices, title)
     title = "Projection Vector Updates"
-    scatter_3d(np.reshape(param_history,(n_steps,3)),title=title)
-    #scatter_3d()
-    print 'last projection:',param_history[-1]
+    scatter_3d(np.reshape(param_history, (n_steps, 3)), title=title)
+    # scatter_3d()
+    print 'last projection:', param_history[-1]
     pdb.set_trace()
+
 
 print('Starting TF Session')
 sess = tf.InteractiveSession()
-#sess = tf_debug.LocalCLIDebugWrapperSession(sess)
-#sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+# sess = tf_debug.LocalCLIDebugWrapperSession(sess)
+# sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 run3()
 print 'finish'
 """
