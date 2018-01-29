@@ -35,8 +35,10 @@ class MLP(NN):
         var_init = tf.Variable(const_init, name="weights{}".format(str(i)))
         return var_init
 
-
-''
+class vgg16:
+    def __init__(self,retrain=False):
+        pass
+'''
 # Single Hidden Layer#
 n_hidden = [5, 50, 1]
 mlp = MLP(n_hidden)
@@ -54,4 +56,5 @@ for i in range(n_train_steps):
     print(w[0])
     print(w[1])
     print('-------------------------------------')
-''
+'''
+
