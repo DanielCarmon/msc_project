@@ -277,7 +277,7 @@ def run4():
     weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
     embedder = Vgg16Embedder(weight_path,sess=sess)
     clusterer = EMClusterer([n, 1000], k)
-    pdb.set_trace()
+    #pdb.set_trace()
     model = Model(data_params, embedder, clusterer, is_img=True)
 
     # train loop

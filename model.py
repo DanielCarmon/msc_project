@@ -34,7 +34,7 @@ class Model:
         self.loss = self.loss_func(self.clustering, self.y)
         self.grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.loss = tf.Print(self.loss, [self.loss], 'loss:')
-        self.loss = tf.Print(self.loss, [self.grads], 'gradient:', summarize=100)
+        self.loss = tf.Print(self.loss, self.grads, 'gradient:', summarize=100)
         self.loss = tf.constant(1.) * self.loss
         self.train_step = self.optimizer.minimize(self.loss)
 

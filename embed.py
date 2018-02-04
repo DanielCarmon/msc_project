@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from nn import *
+from tqdm import tqdm
 from scipy.misc import imread, imresize
 import pdb
 
