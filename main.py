@@ -267,16 +267,17 @@ def run3():
     pdb.set_trace()
 
 def run4():
-    global embedder, clusterer, tf_clustering, data_params, k
-    n, d = 20, 25
+    global embedder, clusterer, tf_clustering, data_params, k, sess
+    n, d = 20,224
     xs, ys = get_bird_train_data(n, d)
     data_params, k = [n, d], 2
-    embedder1 = ImgEmbedder(data_params)
-    embedder2 = ProjectionEmbedder([n, 3*d**2])
-    embedder = embedder2.compose(embedder1)
-    #embedder = TestEmbedder(data_params)
-
-    clusterer = EMClusterer([n, 3*d**2], k)
+    #embedder1 = ImgEmbedder(data_params)
+    #embedder2 = ProjectionEmbedder([n, 3*d**2])
+    #embedder = embedder2.compose(embedder1)
+    weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
+    embedder = Vgg16Embedder(weight_path,sess=sess)
+    clusterer = EMClusterer([n, 1000], k)
+    pdb.set_trace()
     model = Model(data_params, embedder, clusterer, is_img=True)
 
     # train loop
@@ -324,7 +325,7 @@ print('Starting TF Session')
 sess = tf.InteractiveSession()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-run5()
+run4()
 print 'finish'
 """
 # plot approximately how good is each hypothesis.

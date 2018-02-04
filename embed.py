@@ -129,10 +129,9 @@ class Vgg16Embedder(BaseEmbedder):
     def __init__(self, weights=None, sess=None):
         self.weight_file = weights
         self.sess = sess
-
+        self.pretrained = self.built = False
+        self.params = []
     def convlayers(self, x):
-        self.parameters = []
-
         # zero-mean input
         with tf.name_scope('preprocess') as scope:
             mean = tf.constant([123.68, 116.779, 103.939], dtype=tf.float32, shape=[1, 1, 1, 3], name='img_mean')
@@ -147,7 +146,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv1_1 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv1_2
         with tf.name_scope('conv1_2') as scope:
@@ -158,7 +157,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv1_2 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # pool1
         self.pool1 = tf.nn.max_pool(self.conv1_2,
@@ -176,7 +175,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv2_1 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv2_2
         with tf.name_scope('conv2_2') as scope:
@@ -187,7 +186,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv2_2 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # pool2
         self.pool2 = tf.nn.max_pool(self.conv2_2,
@@ -205,7 +204,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv3_1 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv3_2
         with tf.name_scope('conv3_2') as scope:
@@ -216,7 +215,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv3_2 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv3_3
         with tf.name_scope('conv3_3') as scope:
@@ -227,7 +226,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv3_3 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # pool3
         self.pool3 = tf.nn.max_pool(self.conv3_3,
@@ -245,7 +244,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv4_1 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv4_2
         with tf.name_scope('conv4_2') as scope:
@@ -256,7 +255,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv4_2 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv4_3
         with tf.name_scope('conv4_3') as scope:
@@ -267,7 +266,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv4_3 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # pool4
         self.pool4 = tf.nn.max_pool(self.conv4_3,
@@ -285,7 +284,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv5_1 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv5_2
         with tf.name_scope('conv5_2') as scope:
@@ -296,7 +295,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv5_2 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # conv5_3
         with tf.name_scope('conv5_3') as scope:
@@ -307,7 +306,7 @@ class Vgg16Embedder(BaseEmbedder):
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv5_3 = tf.nn.relu(out, name=scope)
-            self.parameters += [kernel, biases]
+            self.params += [kernel, biases]
 
         # pool5
         self.pool5 = tf.nn.max_pool(self.conv5_3,
@@ -328,7 +327,7 @@ class Vgg16Embedder(BaseEmbedder):
             pool5_flat = tf.reshape(self.pool5, [-1, shape])
             fc1l = tf.nn.bias_add(tf.matmul(pool5_flat, fc1w), fc1b)
             self.fc1 = tf.nn.relu(fc1l)
-            self.parameters += [fc1w, fc1b]
+            self.params += [fc1w, fc1b]
 
         # fc2
         with tf.name_scope('fc2') as scope:
@@ -339,7 +338,7 @@ class Vgg16Embedder(BaseEmbedder):
                                trainable=True, name='biases')
             fc2l = tf.nn.bias_add(tf.matmul(self.fc1, fc2w), fc2b)
             self.fc2 = tf.nn.relu(fc2l)
-            self.parameters += [fc2w, fc2b]
+            self.params += [fc2w, fc2b]
 
         # fc3
         with tf.name_scope('fc3') as scope:
@@ -349,7 +348,7 @@ class Vgg16Embedder(BaseEmbedder):
             fc3b = tf.Variable(tf.constant(1.0, shape=[1000], dtype=tf.float32),
                                trainable=True, name='biases')
             self.fc3l = tf.nn.bias_add(tf.matmul(self.fc2, fc3w), fc3b)
-            self.parameters += [fc3w, fc3b]
+            self.params += [fc3w, fc3b]
 
     def load_weights(self, weight_file, sess):
         weights = np.load(weight_file)
@@ -357,18 +356,21 @@ class Vgg16Embedder(BaseEmbedder):
         print 'started loading pre-trained params'
         for i, k in enumerate(keys):
             # print i, k, np.shape(weights[k])
-            sess.run(self.parameters[i].assign(weights[k]))
+            sess.run(self.params[i].assign(weights[k]))
         print 'finished loading pre-trained params'
 
     def embed(self, x):
         if not self.built:
             self.convlayers(x)
-            self.fc_layers(x)
-            self.probs = tf.nn.softmax(self.fc3l)
-        if not self.pretrain:
+            self.fc_layers()
+            # self.output = tf.nn.softmax(self.fc3l)
+            self.output = self.fc3l
+            self.built = True
+        if not self.pretrained:
             if self.weight_file is not None and self.sess is not None:
                 self.load_weights(self.weight_file, self.sess)
-        return self.probs
+            self.pretrained = True
+        return self.output
 
 '''
     def infer(img_path):

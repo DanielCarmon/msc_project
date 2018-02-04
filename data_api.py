@@ -301,7 +301,7 @@ def get_bird_train_data(n,d):
         membership_vec[0, np.random.randint(0, k)] = 1
         ys_membership = np.vstack((ys_membership, membership_vec))
     ys = np.matmul(ys_membership, ys_membership.T)
-    return xs,ys
+    return np.array(xs),ys
 def get_bird_test_data(n,d):
     # todo:
     #   - make same crop/resizeprocedure as in zemel paper
@@ -319,9 +319,10 @@ def get_bird_test_data(n,d):
         fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
         im = Image.open(fname_)
         img_arr = np.array(im)
-        img_arr = img_arr[:d, :d, :]  # crop/resize.
+        img_arr = imresize(img, (d, d))
+        #img_arr = img_arr[:d, :d, :]  # crop/resize.
         xs.append(img_arr)
         membership_vec = np.zeros((1, k))
         membership_vec[0, np.random.randint(0, k)] = 1
         ys_membership = np.vstack((ys_membership, membership_vec))
-    return xs,ys_membership
+    return np.array(xs),ys_membership
