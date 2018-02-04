@@ -9,7 +9,7 @@ from datetime import datetime
 import pdb
 import inspect
 from tensorflow.python import debug as tf_debug
-
+from sklearn.metrics import normalized_mutual_info_score as nmi
 
 def linenum():
     """ Returns current line number """
@@ -266,12 +266,65 @@ def run3():
     print 'last projection:', param_history[-1]
     pdb.set_trace()
 
+def run4():
+    global embedder, clusterer, tf_clustering, data_params, k
+    n, d = 20, 25
+    xs, ys = get_bird_train_data(n, d)
+    data_params, k = [n, d], 2
+    embedder1 = ImgEmbedder(data_params)
+    embedder2 = ProjectionEmbedder([n, 3*d**2])
+    embedder = embedder2.compose(embedder1)
+    #embedder = TestEmbedder(data_params)
+
+    clusterer = EMClusterer([n, 3*d**2], k)
+    model = Model(data_params, embedder, clusterer, is_img=True)
+
+    # train loop
+    param_history = []
+    loss_history = []
+    step = model.train_step
+    feed_dict = {model.x: xs, model.y: ys}
+    sess.run(tf.global_variables_initializer())
+    n_steps = 2
+    for i in range(n_steps):
+        print 'at train step', i
+        #pdb.set_trace()
+        sess.run(step, feed_dict=feed_dict)
+
+    # test
+    xs, ys = get_bird_test_data(n, d)
+    feed_dict = {model.x: xs}
+    clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
+    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
+    print nmi_score
+    pdb.set_trace()
+
+
+def run5():
+    n, d, k = 100, 3, 3
+    xs, ys = get_gaussians(n, d, k)
+    data_params = [k*n, d]
+    embedder1 = TestEmbedder2(data_params)
+    embedder2 = ProjectionEmbedder(data_params)
+    embedder = embedder2.compose(embedder1)
+    clusterer = EMClusterer(data_params, k)
+    model = Model(data_params, embedder, clusterer)
+    sess.run(tf.global_variables_initializer())
+    pdb.set_trace()
+    # train loop
+    feed_dict={model.x: xs, model.y: np.matmul(ys,ys.T)}
+    n_steps = 100
+    for i in range(n_steps):
+        print 'at train step', i
+        # pdb.set_trace()
+        sess.run(model.train_step, feed_dict=feed_dict)
+
 
 print('Starting TF Session')
 sess = tf.InteractiveSession()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-run3()
+run5()
 print 'finish'
 """
 # plot approximately how good is each hypothesis.

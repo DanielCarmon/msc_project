@@ -1,10 +1,12 @@
 import tensorflow as tf
 import numpy as np
-import tqdm
+import pdb
+from tqdm import tqdm
+
 
 class BaseClusterer():
     def infer_clustering(self):
-        for i in tqdm(range(self.n_iters), desc="Building {} Layers".format(self.__class__.__name__)):
+        for _ in tqdm(range(self.n_iters), desc="Building {} Layers".format(self.__class__.__name__)):
             self.update_params()
         history_tensor = tf.convert_to_tensor(self.history_list)  # [n_iters,n,k] tensor of membership matrices
         # history_tensor = tf.Print(history_tensor,[0],"Finished Parameter Updates")
@@ -220,7 +222,7 @@ class GDKMeansClusterer2(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, n_iters=50):
+    def __init__(self, data_params, k, n_iters=2):
         self.n_iters = n_iters
         self.k = k
         self.n, self.d = tuple(data_params)
@@ -246,9 +248,9 @@ class EMClusterer(BaseClusterer):
     def infer_theta(x, z):
         # x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
         clust_sums = tf.matmul(tf.transpose(z), x, name='clust_sums')  # [k,d]
-        # clust_sums = tf.Print(clust_sums,[clust_sums],"clust_sums")
+        clust_sums = tf.Print(clust_sums, [clust_sums], "clust_sums")
         clust_sz = tf.reduce_sum(z, axis=0, name='clust_sz')  # [k]
-        # clust_sz = tf.Print(clust_sz,[clust_sz],"clust_sz")
+        clust_sz = tf.Print(clust_sz, [clust_sz], "clust_sz")
         normalizer = tf.matrix_inverse(tf.diag(clust_sz), name='normalizer')  # [k,k]
         # normalizer = tf.Print(normalizer,[normalizer[0],normalizer[1]],"normalizer:")
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids
@@ -262,7 +264,8 @@ class EMClusterer(BaseClusterer):
         z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
-        z = tf.nn.softmax(z / 2, dim=1)
+        bandwidth = 0.5
+        z = tf.nn.softmax(bandwidth*z, dim=1)
         # check = tf.is_nan(tf.reduce_sum(z))
         # z = tf.Print(z,[z[0],z[1]],"inferred Z:")
         return z

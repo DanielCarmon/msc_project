@@ -7,26 +7,30 @@ from tqdm import tqdm
 from embed import *
 from cluster import *
 
+
 def nan_alarm(x):
     return tf.Print(x, [tf.is_nan(tf.reduce_sum(x))], "{} Nan?".format(x.name))
+
 
 class Model:
     optimizer = tf.train.AdamOptimizer(0.1)
 
     # optimizer = tf.train.GradientDescentOptimizer(0.01)
-    def __init__(self, data_params, embedder=None, clusterer=None):
+    def __init__(self, data_params, embedder=None, clusterer=None, is_img=False):
         self.embedder = embedder
         self.clusterer = clusterer
         self.n, self.d = tuple(data_params)
-        self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
+        if is_img:
+            self.x = tf.placeholder(tf.float32, [self.n, self.d, self.d, 3])  # rows are data points
+        else:
+            self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
         self.x = tf.cast(self.x, tf.float32)
         self.y = tf.placeholder(tf.float32, [self.n, self.n])
         self.y = tf.cast(self.y, tf.float32)
-        x_embed = self.embedder.embed(self.x)
-        x_embed = tf.Print(x_embed, [x_embed], "x_embed:", summarize=10)
-        self.clusterer.set_data(x_embed)
+        self.x_embed = self.embedder.embed(self.x)
+        self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
+        self.clusterer.set_data(self.x_embed)
         self.clustering = self.clusterer.infer_clustering()
-        # self.loss = self.stam(self.clustering,self.y)
         self.loss = self.loss_func(self.clustering, self.y)
         self.grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.loss = tf.Print(self.loss, [self.loss], 'loss:')
@@ -40,7 +44,7 @@ class Model:
         compare = y_pred[-1]
         tensor_shape = tf.shape(compare)
         normalize = (tensor_shape[0] * tensor_shape[1])
-        # normalize = 1.
+        #normalize = 1.
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
 
     @staticmethod

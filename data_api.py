@@ -138,8 +138,7 @@ def get_gaussians(n,d=2,k=2):
     xs = np.zeros((0,d))
     ys = np.zeros((0,k))
     for i in range(k):
-        mu = 7*i*np.ones((1,d))
-        print(mu)
+        mu = 7*i*np.ones((1, d))
         sample = np.random.normal(mu,size=(n,d))
         xs = np.vstack((xs,sample))
         membership_vec = np.zeros((1,k))
@@ -261,7 +260,7 @@ def get_clst_mat(y,flag):
     if flag=='one-hot':
         return get_clst_mat_from1hot(y)
     elif flag=='mask':
-        return get_clst_mat_frommask(y)
+        return get_clst_mat_frommasks(y)
 def noisify(x):
     shape = x.shape
     #eps = 0.1
@@ -276,3 +275,53 @@ def flip_noisify(arr,flip_ratio=0.2):
         i,j = random.randint(0,arr.shape[0]-1),random.randint(0,arr.shape[1]-1)
         arr[i,j] = 1-arr[i,j] # flip
     return arr
+
+# @debug tests
+def get_bird_train_data(n,d):
+    # todo:
+    #   - make same crop/resizeprocedure as in zemel paper
+    #   - change membership_vec calculation and num. clusters
+    #   - go over all images
+    #   - add data augmentation
+    #from scipy.ndimage import imread
+    import Image
+    xs = []
+    k = 2  # @tmp
+    ys_membership = np.zeros((0, k))
+    file_names_path = "/home/d/tmp/images.txt"
+    f = open(file_names_path)
+    file_names = f.readlines()
+    for fname in file_names[:n]:
+        fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
+        im = Image.open(fname_)
+        img_arr = np.array(im)
+        img_arr = img_arr[:d, :d, :] # crop/resize.
+        xs.append(img_arr)
+        membership_vec = np.zeros((1, k))
+        membership_vec[0, np.random.randint(0, k)] = 1
+        ys_membership = np.vstack((ys_membership, membership_vec))
+    ys = np.matmul(ys_membership, ys_membership.T)
+    return xs,ys
+def get_bird_test_data(n,d):
+    # todo:
+    #   - make same crop/resizeprocedure as in zemel paper
+    #   - change membership_vec calculation and num. clusters
+    #   - go over all images
+    #from scipy.ndimage import imread
+    import Image
+    xs = []
+    k = 2  # @tmp
+    ys_membership = np.zeros((0, k))
+    file_names_path = "/home/d/tmp/images.txt"
+    f = open(file_names_path)
+    file_names = f.readlines()
+    for fname in file_names[:n]:
+        fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
+        im = Image.open(fname_)
+        img_arr = np.array(im)
+        img_arr = img_arr[:d, :d, :]  # crop/resize.
+        xs.append(img_arr)
+        membership_vec = np.zeros((1, k))
+        membership_vec[0, np.random.randint(0, k)] = 1
+        ys_membership = np.vstack((ys_membership, membership_vec))
+    return xs,ys_membership
