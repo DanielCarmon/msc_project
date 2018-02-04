@@ -4,6 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy import misc
 from PIL import Image
 import pdb
+from scipy.misc import imread, imresize
 rand = np.random.randint
 def img_animate(tensor):
     import matplotlib.animation as anim
@@ -295,7 +296,7 @@ def get_bird_train_data(n,d):
         fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
         im = Image.open(fname_)
         img_arr = np.array(im)
-        img_arr = img_arr[:d, :d, :] # crop/resize.
+        img_arr = imresize(im, (d, d)) # crop/resize.
         xs.append(img_arr)
         membership_vec = np.zeros((1, k))
         membership_vec[0, np.random.randint(0, k)] = 1
