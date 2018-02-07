@@ -282,7 +282,7 @@ def get_bird_train_data(k,d):
     xs = []
     ys_membership = np.zeros((0, k))
 
-    # data_dir = 'uni data dir'
+    # data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011/images.txt'
     data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
     class_names = open(data_dir+'/classes.txt').readlines()
     file_names = open(data_dir+'/images.txt').readlines()
@@ -311,7 +311,7 @@ def get_bird_test_data(k,d):
     xs = []
     ys_membership = np.zeros((0, k))
 
-    # data_dir = 'uni data dir'
+    # data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011/images.txt'
     data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
     class_names = open(data_dir+'/classes.txt').readlines()
     file_names = open(data_dir+'/images.txt').readlines()
