@@ -268,12 +268,11 @@ def run3():
 
 def run4():
     global embedder, clusterer, tf_clustering, data_params, k, sess
-    n, d = 20,224
-    xs, ys = get_bird_train_data(n, d)
-    data_params, k = [n, d], 2
-    #embedder1 = ImgEmbedder(data_params)
-    #embedder2 = ProjectionEmbedder([n, 3*d**2])
-    #embedder = embedder2.compose(embedder1)
+    d = 224
+    k = 2
+    xs, ys = get_bird_train_data(k, d)
+    n = xs.shape[0]
+    data_params = [n, d]
     weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
     embedder = Vgg16Embedder(weight_path,sess=sess)
     clusterer = EMClusterer([n, 1000], k)
@@ -287,13 +286,14 @@ def run4():
     feed_dict = {model.x: xs, model.y: ys}
     sess.run(tf.global_variables_initializer())
     n_steps = 2
+    pdb.set_trace()
     for i in range(n_steps):
         print 'at train step', i
         #pdb.set_trace()
         sess.run(step, feed_dict=feed_dict)
 
     # test
-    xs, ys = get_bird_test_data(n, d)
+    xs, ys = get_bird_test_data(k, d)
     feed_dict = {model.x: xs}
     clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
     nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
@@ -302,25 +302,13 @@ def run4():
 
 
 def run5():
-    n, d, k = 100, 3, 3
-    xs, ys = get_gaussians(n, d, k)
-    data_params = [k*n, d]
-    embedder1 = TestEmbedder2(data_params)
-    embedder2 = ProjectionEmbedder(data_params)
-    embedder = embedder2.compose(embedder1)
-    clusterer = EMClusterer(data_params, k)
-    model = Model(data_params, embedder, clusterer)
-    sess.run(tf.global_variables_initializer())
+    global embedder, clusterer, tf_clustering, data_params, k, sess
+    d = 224
+    k = 5
+    xs, ys = get_bird_train_data(k, d)
+    n = xs.shape[0]
+    data_params = [n, d, d, 3]
     pdb.set_trace()
-    # train loop
-    feed_dict={model.x: xs, model.y: np.matmul(ys,ys.T)}
-    n_steps = 100
-    for i in range(n_steps):
-        print 'at train step', i
-        # pdb.set_trace()
-        sess.run(model.train_step, feed_dict=feed_dict)
-
-
 print('Starting TF Session')
 sess = tf.InteractiveSession()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)

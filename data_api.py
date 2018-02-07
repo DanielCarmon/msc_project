@@ -277,6 +277,63 @@ def flip_noisify(arr,flip_ratio=0.2):
         arr[i,j] = 1-arr[i,j] # flip
     return arr
 
+def get_bird_train_data(k,d):
+    import Image
+    xs = []
+    ys_membership = np.zeros((0, k))
+
+    # data_dir = 'uni data dir'
+    data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
+    class_names = open(data_dir+'/classes.txt').readlines()
+    file_names = open(data_dir+'/images.txt').readlines()
+    curr_class = 0
+    for class_name in class_names[:k]:
+        #pdb.set_trace()
+        class_name = class_name.split(' ')[1][:-1]
+        print class_name
+        for fname in file_names:
+            fname = fname.split(' ')[1][:-1]
+            fclass = fname.split('/')[0]
+            if fclass==class_name:
+                fname_ = data_dir+'/images/'+fname
+                im = Image.open(fname_)
+                img_arr = np.array(im)
+                img_arr = imresize(img_arr, (d, d))  # crop/resize.
+                xs.append(img_arr)
+                membership_vec = np.zeros((1, k))
+                membership_vec[0,curr_class] = 1
+                ys_membership = np.vstack((ys_membership, membership_vec))
+        curr_class+=1
+    ys = np.matmul(ys_membership, ys_membership.T)
+    return np.array(xs), ys
+def get_bird_test_data(k,d):
+    import Image
+    xs = []
+    ys_membership = np.zeros((0, k))
+
+    # data_dir = 'uni data dir'
+    data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
+    class_names = open(data_dir+'/classes.txt').readlines()
+    file_names = open(data_dir+'/images.txt').readlines()
+    curr_class = 0
+    for class_name in class_names[-k:]:
+        class_name = class_name.split(' ')[1][-1]
+        for fname in file_names:
+            fname = fname.split(' ')[1][:-1]
+            fclass = fname.split('/')[0]
+            if fclass==class_name:
+                fname_ = data_dir+fname
+                im = Image.open(fname_)
+                img_arr = np.array(im)
+                img_arr = imresize(img_arr, (d, d))  # crop/resize.
+                xs.append(img_arr)
+                membership_vec = np.zeros((1, k))
+                membership_vec[curr_class] = 1
+                ys_membership = np.vstack((ys_membership, membership_vec))
+        curr_class+=1
+    ys = np.matmul(ys_membership, ys_membership.T)
+    return np.array(xs), ys
+"""
 # @debug tests
 def get_bird_train_data(n,d):
     # todo:
@@ -320,10 +377,11 @@ def get_bird_test_data(n,d):
         fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
         im = Image.open(fname_)
         img_arr = np.array(im)
-        img_arr = imresize(img, (d, d))
+        img_arr = imresize(img_arr, (d, d))
         #img_arr = img_arr[:d, :d, :]  # crop/resize.
         xs.append(img_arr)
         membership_vec = np.zeros((1, k))
         membership_vec[0, np.random.randint(0, k)] = 1
         ys_membership = np.vstack((ys_membership, membership_vec))
     return np.array(xs),ys_membership
+"""
