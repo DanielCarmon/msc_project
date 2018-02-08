@@ -270,12 +270,15 @@ def run4():
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 224
     k = 2
-    xs, ys = get_bird_train_data(k, d)
-    n = xs.shape[0]
+    n_ = 10 # points per cluster
+    xs, ys = get_bird_train_data(k, n_, d)
+    n = n_*k
     data_params = [n, d]
-    weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
-    embedder = Vgg16Embedder(weight_path,sess=sess)
-    clusterer = EMClusterer([n, 1000], k)
+    weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
+    #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
+    embed_dim = 3
+    embedder = Vgg16Embedder(weight_path,sess=sess,embed_dim=embed_dim)
+    clusterer = EMClusterer([n, embed_dim], k, n_iters = 20)
     #pdb.set_trace()
     model = Model(data_params, embedder, clusterer, is_img=True)
 
@@ -285,20 +288,20 @@ def run4():
     step = model.train_step
     feed_dict = {model.x: xs, model.y: ys}
     sess.run(tf.global_variables_initializer())
-    n_steps = 2
-    pdb.set_trace()
+    n_steps = 50
+    #pdb.set_trace()
     for i in range(n_steps):
         print 'at train step', i
         #pdb.set_trace()
         sess.run(step, feed_dict=feed_dict)
 
     # test
-    xs, ys = get_bird_test_data(k, d)
+    xs, ys = get_bird_test_data(k, n_, d)
     feed_dict = {model.x: xs}
     clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
     nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
     print nmi_score
-    pdb.set_trace()
+    # pdb.set_trace()
 
 
 def run5():

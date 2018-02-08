@@ -277,22 +277,34 @@ def flip_noisify(arr,flip_ratio=0.2):
         arr[i,j] = 1-arr[i,j] # flip
     return arr
 
-def get_bird_train_data(k,d):
+def get_relevant_fnames(file_names, class_name):
+    ret = []
+    for fname in file_names:
+        fname = fname.split(' ')[1]
+        if fname.split('/')[0]==class_name:
+            ret.append(fname)
+    return ret
+def get_bird_train_data(k,n,d):
+    '''
+    :param k: num classes
+    :param n: num data points per class
+    :param d: img dims to crop to
+    :return: [k*n,d,d,3] , [k*n,k*n]
+    '''
     import Image
     xs = []
     ys_membership = np.zeros((0, k))
 
-    # data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011/images.txt'
-    data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
+    data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011'
+    #data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
     class_names = open(data_dir+'/classes.txt').readlines()
     file_names = open(data_dir+'/images.txt').readlines()
     curr_class = 0
     for class_name in class_names[:k]:
-        #pdb.set_trace()
         class_name = class_name.split(' ')[1][:-1]
-        print class_name
-        for fname in file_names:
-            fname = fname.split(' ')[1][:-1]
+        file_names_relevant = get_relevant_fnames(file_names,class_name)
+        for fname in np.random.permutation(file_names_relevant)[:n]:
+            fname = fname[:-1]
             fclass = fname.split('/')[0]
             if fclass==class_name:
                 fname_ = data_dir+'/images/'+fname
@@ -306,29 +318,36 @@ def get_bird_train_data(k,d):
         curr_class+=1
     ys = np.matmul(ys_membership, ys_membership.T)
     return np.array(xs), ys
-def get_bird_test_data(k,d):
+def get_bird_test_data(k,n,d):
+    '''
+    :param k: num classes
+    :param n: num data points per class
+    :param d: img dims to crop to
+    :return: [k*n,d,d,3] , [k*n,k]
+    '''
     import Image
     xs = []
     ys_membership = np.zeros((0, k))
 
-    # data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011/images.txt'
-    data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
+    data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011'
+    #data_dir = '/home/d/Desktop/uni/research/CUB_200_2011'
     class_names = open(data_dir+'/classes.txt').readlines()
     file_names = open(data_dir+'/images.txt').readlines()
     curr_class = 0
     for class_name in class_names[-k:]:
-        class_name = class_name.split(' ')[1][-1]
-        for fname in file_names:
-            fname = fname.split(' ')[1][:-1]
+        class_name = class_name.split(' ')[1][:-1]
+        file_names_relevant = get_relevant_fnames(file_names,class_name)
+        for fname in np.random.permutation(file_names_relevant)[:n]:
+            fname = fname[:-1]
             fclass = fname.split('/')[0]
             if fclass==class_name:
-                fname_ = data_dir+fname
+                fname_ = data_dir+'/images/'+fname
                 im = Image.open(fname_)
                 img_arr = np.array(im)
                 img_arr = imresize(img_arr, (d, d))  # crop/resize.
                 xs.append(img_arr)
                 membership_vec = np.zeros((1, k))
-                membership_vec[curr_class] = 1
+                membership_vec[0,curr_class] = 1
                 ys_membership = np.vstack((ys_membership, membership_vec))
         curr_class+=1
     ys = np.matmul(ys_membership, ys_membership.T)

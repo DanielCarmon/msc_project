@@ -127,7 +127,8 @@ class ProjectionEmbedder(BaseEmbedder):
 
 
 class Vgg16Embedder(BaseEmbedder):
-    def __init__(self, weights=None, sess=None):
+    def __init__(self, weights=None, sess=None, embed_dim = 512):
+        self.embed_dim = embed_dim
         self.weight_file = weights
         self.sess = sess
         self.pretrained = self.built = False
@@ -364,8 +365,13 @@ class Vgg16Embedder(BaseEmbedder):
         if not self.built:
             self.convlayers(x)
             self.fc_layers()
-            # self.output = tf.nn.softmax(self.fc3l)
-            self.output = self.fc3l
+            self.fc3l = tf.Print(self.fc3l,[self.fc3l],message="self.fc3l:",summarize=20)
+            self.probs = tf.nn.softmax(self.fc3l)
+            self.probs = tf.Print(self.probs,[self.probs],message="probs:",summarize=20)
+            self.mylayer = tf.Variable(tf.truncated_normal([1000, self.embed_dim], dtype=tf.float32, stddev=1e-1), name='mylayer')
+            
+            self.last = tf.matmul(self.probs,self.mylayer)
+            self.output = tf.nn.relu(self.last)
             self.built = True
         if not self.pretrained:
             if self.weight_file is not None and self.sess is not None:
