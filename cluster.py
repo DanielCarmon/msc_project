@@ -222,7 +222,7 @@ class GDKMeansClusterer2(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, n_iters=2):
+    def __init__(self, data_params, k, n_iters=20):
         self.n_iters = n_iters
         self.k = k
         self.n, self.d = tuple(data_params)
@@ -248,9 +248,9 @@ class EMClusterer(BaseClusterer):
     def infer_theta(x, z):
         # x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
         clust_sums = tf.matmul(tf.transpose(z), x, name='clust_sums')  # [k,d]
-        clust_sums = tf.Print(clust_sums, [clust_sums], "clust_sums")
+        # clust_sums = tf.Print(clust_sums, [clust_sums], "clust_sums")
         clust_sz = tf.reduce_sum(z, axis=0, name='clust_sz')  # [k]
-        clust_sz = tf.Print(clust_sz, [clust_sz], "clust_sz")
+        # clust_sz = tf.Print(clust_sz, [clust_sz], "clust_sz")
         normalizer = tf.matrix_inverse(tf.diag(clust_sz), name='normalizer')  # [k,k]
         # normalizer = tf.Print(normalizer,[normalizer[0],normalizer[1]],"normalizer:")
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids

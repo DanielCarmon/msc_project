@@ -269,39 +269,47 @@ def run3():
 def run4():
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 224
-    k = 2
-    n_ = 10 # points per cluster
+    k = 3
+    n_ = 2 # points per cluster
     xs, ys = get_bird_train_data(k, n_, d)
     n = n_*k
     data_params = [n, d]
     weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
     #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
-    embed_dim = 3
+    embed_dim = 128
     embedder = Vgg16Embedder(weight_path,sess=sess,embed_dim=embed_dim)
-    clusterer = EMClusterer([n, embed_dim], k, n_iters = 20)
+    clusterer = EMClusterer([n, 1000], k, n_iters = 1)
     #pdb.set_trace()
     model = Model(data_params, embedder, clusterer, is_img=True)
 
     # train loop
     param_history = []
     loss_history = []
+    nmi_score_history = []
     step = model.train_step
-    feed_dict = {model.x: xs, model.y: ys}
+
     sess.run(tf.global_variables_initializer())
-    n_steps = 50
+    n_steps = 100
     #pdb.set_trace()
     for i in range(n_steps):
+        xs, ys = get_bird_train_data(k, n_, d)
+        feed_dict = {model.x: xs, model.y: ys}
         print 'at train step', i
         #pdb.set_trace()
+        clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
         sess.run(step, feed_dict=feed_dict)
-
+        nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
+        print 'nmi_score: ',nmi_score
+        nmi_score_history.append(nmi_score)
     # test
-    xs, ys = get_bird_test_data(k, n_, d)
+    #n_test = 20 # points per class
+    xs, ys = get_bird_test_data(k, n_, d) # todo: add support for bigger test sets...
     feed_dict = {model.x: xs}
     clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
     nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
     print nmi_score
     # pdb.set_trace()
+    print nmi_score_history
 
 
 def run5():

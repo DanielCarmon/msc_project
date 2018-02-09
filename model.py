@@ -13,7 +13,7 @@ def nan_alarm(x):
 
 
 class Model:
-    optimizer = tf.train.AdamOptimizer(0.1)
+    optimizer = tf.train.AdamOptimizer(10)
 
     # optimizer = tf.train.GradientDescentOptimizer(0.01)
     def __init__(self, data_params, embedder=None, clusterer=None, is_img=False):
@@ -34,7 +34,7 @@ class Model:
         self.loss = self.loss_func(self.clustering, self.y)
         self.grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.loss = tf.Print(self.loss, [self.loss], 'loss:')
-        self.loss = tf.Print(self.loss, self.grads, 'gradient:', summarize=100)
+        self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(grad) for grad in self.grads])], 'gradient:', summarize=100)
         self.loss = tf.constant(1.) * self.loss
         self.train_step = self.optimizer.minimize(self.loss)
 
@@ -45,6 +45,7 @@ class Model:
         tensor_shape = tf.shape(compare)
         normalize = (tensor_shape[0] * tensor_shape[1])
         #normalize = 1.
+        print 'gradient normalizing factor = ',normalize
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
 
     @staticmethod
