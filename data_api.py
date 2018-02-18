@@ -412,6 +412,7 @@ def get_bird_train_data2(data_dir,k,n):
     data_shape = loaded_train_data[0].shape
     xs = np.zeros(tuple([0])+data_shape[1:])
     ys_membership = np.zeros((0,k))
+    
     for i in range(k):
         xs_i = loaded_train_data[i]
         xs_i = xs_i[:30]
@@ -419,7 +420,7 @@ def get_bird_train_data2(data_dir,k,n):
         # augment:
         xs_i_augment = np.flip(xs_i,2) # horizontal flipping
         xs_i = np.vstack((xs_i,xs_i_augment))
-        
+
         xs_i = np.random.permutation(xs_i)
         xs = np.vstack((xs, xs_i[:n]))
 
@@ -448,4 +449,7 @@ def get_bird_test_data2(data_dir,k,n):
         membership_block[:, i] = 1  # notice that this "label" is only for partition purposes
         ys_membership = np.vstack((ys_membership, membership_block))
     ys = np.matmul(ys_membership,ys_membership.T)
+    # center crop:
+    # xs = xs[:,35:265,35:235,:] # crop
+    # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
     return xs,ys
