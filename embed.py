@@ -2,6 +2,9 @@ import tensorflow as tf
 import numpy as np
 from nn import *
 from tqdm import tqdm
+import sys
+sys.path.insert(0,'/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-inference')
+import inception_model as inception
 from scipy.misc import imread, imresize
 import pdb
 
@@ -403,6 +406,41 @@ class Vgg16Embedder(BaseEmbedder):
                 self.load_weights(self.weight_file, self.sess)
             self.pretrained = True
         return self.output
+
+class InceptionEmbedder(BaseEmbedder):
+    def __init__(self, weights=None, sess=None, embed_dim = 1001):
+        self.embed_dim = embed_dim
+        self.weight_file = weights
+        self.sess = sess
+        self.pretrained = self.built = False
+        self.params = []
+        self.endpoints = 0
+    def embed(self, x):
+        print x
+        self.logits,self.activations_dict = inception.inference(x,1001)
+        variable_averages = tf.train.ExponentialMovingAverage(inception.MOVING_AVERAGE_DECAY)
+        variables_to_restore = variable_averages.variables_to_restore() # dictionary
+        
+        self.param_dict = variables_to_restore
+        self.params = [param for param in self.param_dict.values()]
+        
+        # self.last_layer = tf.Variable(tf.random_normal([1001, self.embed_dim], stddev=0.1),
+        #                              name="last_layer")
+        # self.output = tf.matmul(self.logits,self.last_layer)
+        # self.params.append(self.last_layer)
+        self.output = self.logits
+        return self.output
+    def load_weights(self,sess):
+        print 'start loading pre-trained weights'
+
+        ckpt = tf.train.get_checkpoint_state(self.weight_file)  
+        saver = tf.train.Saver(self.param_dict)
+        saver.restore(sess, ckpt.model_checkpoint_path)  
+        #self.params = filter((lambda x: x!=None),self.params)
+
+        print 'finished loading pre-trained weights'
+
+        global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
 '''
     def infer(img_path):
         img = imread(img_path, mode='RGB')

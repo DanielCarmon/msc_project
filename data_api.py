@@ -284,6 +284,54 @@ def get_relevant_fnames(file_names, class_name):
         if fname.split('/')[0]==class_name:
             ret.append(fname)
     return ret
+
+def preprocess_data(data_dir, save_dir,d,num_classes=200):
+    # needs to be called only once.
+    # data_dir: where data is currently located
+    # save_dir: where preprocessed data should be saved
+    # d: size to reshape images to. [d,d,3]
+    # num_classes = total number of classes in dataset
+
+    import Image
+    xs = np.zeros((0, d, d, 3))
+    ys_membership = np.zeros((0, num_classes))
+    # fill xs:
+    print 'filling xs'
+    class_names = open(data_dir + '/classes.txt').readlines()
+    file_names = open(data_dir + '/images.txt').readlines()
+    curr_class = 0
+    for class_name in class_names:
+        class_name = class_name.split(' ')[1][:-1]
+        xs = np.zeros((0, d, d, 3))
+        print class_name
+        file_names_relevant = get_relevant_fnames(file_names, class_name)
+        for fname in file_names_relevant:
+            fname = fname[:-1]
+            fclass = fname.split('/')[0]
+            if fclass == class_name:
+                fname_ = data_dir + '/images/' + fname
+                im = Image.open(fname_)
+                img_arr = np.array(im)
+                img_arr = imresize(img_arr, (d, d))  # crop/resize.
+                if img_arr.shape!=(d,d,3):
+                    print 'bw image!'
+                    continue
+                xs = np.vstack((xs, img_arr[np.newaxis, :, :, :]))
+        #membership_vec = np.zeros((1, num_classes))
+        #membership_vec[0, curr_class] = 1
+        #ys_membership = np.vstack((ys_membership, membership_vec))
+        curr_class += 1
+        print 'processing xs'
+        xs_mean = np.mean(xs,0)
+        xs_var = np.mean((xs-xs_mean)**2, 0)
+        xs_normalized = (xs-xs_mean)/np.sqrt(xs_var)
+        # save xs,ys
+        save_dir_ = save_dir + '/class'+str(curr_class)+'.npy'
+        print 'saving at',save_dir_
+        np.save(save_dir_,xs_normalized)
+    return 0
+
+
 def get_bird_train_data(k,n,d):
     '''
     :param k: num classes
@@ -352,55 +400,52 @@ def get_bird_test_data(k,n,d):
         curr_class+=1
     ys = np.matmul(ys_membership, ys_membership.T)
     return np.array(xs), ys
-"""
-# @debug tests
-def get_bird_train_data(n,d):
-    # todo:
-    #   - make same crop/resizeprocedure as in zemel paper
-    #   - change membership_vec calculation and num. clusters
-    #   - go over all images
-    #   - add data augmentation
-    #from scipy.ndimage import imread
-    import Image
-    xs = []
-    k = 2  # @tmp
-    ys_membership = np.zeros((0, k))
-    file_names_path = "/home/d/tmp/images.txt"
-    f = open(file_names_path)
-    file_names = f.readlines()
-    for fname in file_names[:n]:
-        fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
-        im = Image.open(fname_)
-        img_arr = np.array(im)
-        img_arr = imresize(im, (d, d)) # crop/resize.
-        xs.append(img_arr)
-        membership_vec = np.zeros((1, k))
-        membership_vec[0, np.random.randint(0, k)] = 1
-        ys_membership = np.vstack((ys_membership, membership_vec))
-    ys = np.matmul(ys_membership, ys_membership.T)
-    return np.array(xs),ys
-def get_bird_test_data(n,d):
-    # todo:
-    #   - make same crop/resizeprocedure as in zemel paper
-    #   - change membership_vec calculation and num. clusters
-    #   - go over all images
-    #from scipy.ndimage import imread
-    import Image
-    xs = []
-    k = 2  # @tmp
-    ys_membership = np.zeros((0, k))
-    file_names_path = "/home/d/tmp/images.txt"
-    f = open(file_names_path)
-    file_names = f.readlines()
-    for fname in file_names[:n]:
-        fname_ = '/home/d/tmp/'+fname.split(' ')[1][:-1]
-        im = Image.open(fname_)
-        img_arr = np.array(im)
-        img_arr = imresize(img_arr, (d, d))
-        #img_arr = img_arr[:d, :d, :]  # crop/resize.
-        xs.append(img_arr)
-        membership_vec = np.zeros((1, k))
-        membership_vec[0, np.random.randint(0, k)] = 1
-        ys_membership = np.vstack((ys_membership, membership_vec))
-    return np.array(xs),ys_membership
-"""
+
+loaded_train_data = None # global
+loaded_test_data = None # global
+def get_bird_train_data2(data_dir,k,n):
+    global loaded_train_data
+    if loaded_train_data is None:
+        print 'loading train data'
+        loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in range(1, k+1)]
+    # loaded_train_data exists
+    data_shape = loaded_train_data[0].shape
+    xs = np.zeros(tuple([0])+data_shape[1:])
+    ys_membership = np.zeros((0,k))
+    for i in range(k):
+        xs_i = loaded_train_data[i]
+        xs_i = xs_i[:30]
+        
+        # augment:
+        xs_i_augment = np.flip(xs_i,2) # horizontal flipping
+        xs_i = np.vstack((xs_i,xs_i_augment))
+        
+        xs_i = np.random.permutation(xs_i)
+        xs = np.vstack((xs, xs_i[:n]))
+
+        membership_block = np.zeros((n, k))
+        membership_block[:, i] = 1
+        ys_membership = np.vstack((ys_membership, membership_block))
+    ys = np.matmul(ys_membership,ys_membership.T)
+    return xs,ys
+
+def get_bird_test_data2(data_dir,k,n):
+    global loaded_test_data
+    if loaded_test_data is None:
+        print 'loading test data'
+        loaded_test_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in range(1,k+1)] # todo: remove hardwiring
+    # loaded_test_data exists
+    data_shape = loaded_test_data[0].shape
+    xs = np.zeros(tuple([0])+data_shape[1:])
+    ys_membership = np.zeros((0,k))
+    for i in range(k):
+        xs_i = loaded_test_data[i]
+        xs_i = xs_i[30:]
+        xs_i = np.random.permutation(xs_i)
+        xs = np.vstack((xs, xs_i[:n]))
+
+        membership_block = np.zeros((n, k))
+        membership_block[:, i] = 1  # notice that this "label" is only for partition purposes
+        ys_membership = np.vstack((ys_membership, membership_block))
+    ys = np.matmul(ys_membership,ys_membership.T)
+    return xs,ys

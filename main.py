@@ -1,4 +1,6 @@
 import tensorflow as tf
+import traceback
+import sys
 from data_api import *
 # from model import Model
 from model import *
@@ -264,54 +266,77 @@ def run3():
     scatter_3d(np.reshape(param_history, (n_steps, 3)), title=title)
     # scatter_3d()
     print 'last projection:', param_history[-1]
-    pdb.set_trace()
 
 def run4():
     global embedder, clusterer, tf_clustering, data_params, k, sess
-    d = 224
-    k = 3
-    n_ = 2 # points per cluster
-    xs, ys = get_bird_train_data(k, n_, d)
+    #d = 224
+    d = 299
+    k = 2
+    n_ = 30 # points per cluster
+    data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
     n = n_*k
     data_params = [n, d]
-    weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
+    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
+    vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
     #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
-    embed_dim = 128
-    embedder = Vgg16Embedder(weight_path,sess=sess,embed_dim=embed_dim)
-    clusterer = EMClusterer([n, 1000], k, n_iters = 1)
-    #pdb.set_trace()
-    model = Model(data_params, embedder, clusterer, is_img=True)
+    #embed_dim = 128
+    # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
+    embed_dim = 1001
+    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+    clusterer = EMClusterer([n, embed_dim], k, n_iters = 10)
+    model = Model(data_params, embedder, clusterer, is_img=True,sess=sess)
+    
+    hyparams = 20,data_dir,k,n_
 
-    # train loop
-    param_history = []
-    loss_history = []
-    nmi_score_history = []
-    step = model.train_step
+    def train(model,hyparams):
+        n_steps,data_dir,k,n_ = hyparams
+        param_history = []
+        loss_history = []
+        nmi_score_history = []
+        step = model.train_step
 
-    sess.run(tf.global_variables_initializer())
-    n_steps = 100
-    #pdb.set_trace()
-    for i in range(n_steps):
-        xs, ys = get_bird_train_data(k, n_, d)
-        feed_dict = {model.x: xs, model.y: ys}
-        print 'at train step', i
-        #pdb.set_trace()
-        clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
-        sess.run(step, feed_dict=feed_dict)
-        nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-        print 'nmi_score: ',nmi_score
-        nmi_score_history.append(nmi_score)
+        debug = False
+        for i in range(n_steps): 
+            xs, ys = get_bird_train_data2(data_dir,k, n_)
+            feed_dict = {model.x: xs, model.y: ys}
+            print 'at train step', i
+            try:
+                _,tensor1,tensor2,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict)
+            except:
+                print 'error occured'
+                exc =  sys.exc_info()
+                traceback.print_exception(*exc)
+                pdb.set_trace()
+            print "clustring diffs:",clustering_diffs
+            clustering = clustering_history[-1]
+            # ys_pred = np.matmul(clustering,clustering.T)
+            # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
+            nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
+            print 'nmi_score: ',nmi_score
+            nmi_score_history.append(nmi_score)
+            if debug: 
+                pdb.set_trace()
+        print nmi_score_history
+    # end-to-end training:
+    train(model,hyparams)
+    # last-layer training:
+    last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
+    model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
+    #hyparams = list(hyparams)
+    #hyparams[0]=30
+    #hyparams=tuple(hyparams)
+    train(model,hyparams)
+
     # test
-    #n_test = 20 # points per class
-    xs, ys = get_bird_test_data(k, n_, d) # todo: add support for bigger test sets...
-    feed_dict = {model.x: xs}
-    clustering = sess.run(model.clusterer.history_list,feed_dict=feed_dict)[-1]
-    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-    print nmi_score
-    # pdb.set_trace()
-    print nmi_score_history
-
-
+    # averagce over many of them?
+    xs_test, ys_test = get_bird_test_data2(data_dir,k, n_)
+    feed_dict = {model.x: xs_test,model.y:ys_test}
+    clustering,loss = sess.run([model.clusterer.history_list,model.loss],feed_dict=feed_dict)
+    clustering = clustering[-1]
+    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_test, 1))
+    print 'test loss:',loss
+    print 'test nmi:',nmi_score
+    return nmi_score
 def run5():
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 224
@@ -320,11 +345,20 @@ def run5():
     n = xs.shape[0]
     data_params = [n, d, d, 3]
     pdb.set_trace()
-print('Starting TF Session')
-sess = tf.InteractiveSession()
+
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-run4()
+res = []
+config = tf.ConfigProto()
+config.gpu_options.allow_growth=True
+print('Starting TF Session')
+sess = tf.InteractiveSession(config=config)
+try:
+    res.append(run4())
+except:
+    pdb.set_trace()
+tf.reset_default_graph()
+print res
 print 'finish'
 """
 # plot approximately how good is each hypothesis.

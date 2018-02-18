@@ -236,10 +236,13 @@ class EMClusterer(BaseClusterer):
         self.theta = tf.random_normal([self.k, self.d], seed=2017, name='theta_0')
         # self.theta = tf.constant(np.float32([[0.,1],[1.,0.]]))
         self.history_list = []
-
+        self.diff_history = []
     def update_params(self):
         self.z = self.infer_z(self.x, self.theta)
+        old_theta = self.theta
         self.theta = self.infer_theta(self.x, self.z)  # update
+        diff = tf.reduce_sum((old_theta-self.theta)**2)
+        self.diff_history.append(diff)
         # self.theta = tf.Print(self.theta,[z],"Z:")
         # self.theta = tf.Print(self.theta,[selftheta],"Theta:")
         self.history_list.append(self.z)  # log
@@ -264,7 +267,7 @@ class EMClusterer(BaseClusterer):
         z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
-        bandwidth = 0.5
+        bandwidth = 0.01
         z = tf.nn.softmax(bandwidth*z, dim=1)
         # check = tf.is_nan(tf.reduce_sum(z))
         # z = tf.Print(z,[z[0],z[1]],"inferred Z:")
