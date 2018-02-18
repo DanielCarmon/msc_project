@@ -405,10 +405,10 @@ loaded_train_data = None # global
 loaded_test_data = None # global
 def get_bird_train_data2(data_dir,k,n):
     global loaded_train_data
-    
-    n_classes = 3 # when project is ready, this should be 100
+    n_classes = 5 # when project is ready, this should be 100
     perm = np.random.permutation(range(1,n_classes+1))
     classes = perm[range(k)]
+    print 'classes:',classes
     if loaded_train_data is None:
         print 'loading train data'
         loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes]
@@ -418,8 +418,9 @@ def get_bird_train_data2(data_dir,k,n):
     ys_membership = np.zeros((0,k))
 
     for i in range(k):
-        xs_i = loaded_train_data[i] # random class from first n_classes classes
-        xs_i = np.vstack((xs_i[:30],xs_i[60:90]))
+        xs_i = loaded_train_data[i] # random class from first n_classes classe
+        mid = xs_i.shape[0]/2
+        xs_i = np.vstack((xs_i[:20],xs_i[mid:mid+20]))
         
         # augment:
         # xs_i_augment = np.flip(xs_i,2) # horizontal flipping
@@ -436,8 +437,7 @@ def get_bird_train_data2(data_dir,k,n):
 
 def get_bird_test_data2(data_dir,k,n):
     global loaded_test_data
-    
-    n_classes = 2 # when project is ready, this should be 100
+    n_classes = 5 # when project is ready, this should be 100
     perm = np.random.permutation(range(1,n_classes+1))
     classes = perm[range(k)]
     if loaded_test_data is None:
@@ -449,7 +449,7 @@ def get_bird_test_data2(data_dir,k,n):
     ys_membership = np.zeros((0,k))
     for i in range(k):
         xs_i = loaded_test_data[i]
-        xs_i = xs_i[90:]
+        xs_i = xs_i[xs_i.shape[0]-20:]
         xs_i = np.random.permutation(xs_i)
         xs = np.vstack((xs, xs_i[:n]))
 

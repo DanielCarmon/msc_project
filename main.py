@@ -271,7 +271,7 @@ def run4():
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 299
     k = 2
-    n_ = 30 # points per cluster
+    n_ = 20 # points per cluster
     data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
     n = n_*k
     data_params = [n, d]
@@ -285,7 +285,7 @@ def run4():
     clusterer = EMClusterer([n, embed_dim], k, n_iters = 5)
     model = Model(data_params, embedder, clusterer, is_img=True,sess=sess)
     
-    hyparams = 20,data_dir,k,n_
+    hyparams = 5,data_dir,k,n_
 
     def train(model,hyparams):
         n_steps,data_dir,k,n_ = hyparams
@@ -334,14 +334,6 @@ def run4():
     print 'test loss:',loss
     print 'test nmi:',nmi_score
     return nmi_score
-def run5():
-    global embedder, clusterer, tf_clustering, data_params, k, sess
-    d = 224
-    k = 5
-    xs, ys = get_bird_train_data(k, d)
-    n = xs.shape[0]
-    data_params = [n, d, d, 3]
-    pdb.set_trace()
 
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
@@ -353,6 +345,8 @@ sess = tf.InteractiveSession(config=config)
 try:
     res.append(run4())
 except:
+    exc =  sys.exc_info()
+    traceback.print_exception(*exc)
     pdb.set_trace()
 tf.reset_default_graph()
 print res
