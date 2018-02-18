@@ -285,7 +285,7 @@ def run4():
     clusterer = EMClusterer([n, embed_dim], k, n_iters = 5)
     model = Model(data_params, embedder, clusterer, is_img=True,sess=sess)
     
-    hyparams = 50,data_dir,k,n_
+    hyparams = 20,data_dir,k,n_
 
     def train(model,hyparams):
         n_steps,data_dir,k,n_ = hyparams
@@ -317,6 +317,7 @@ def run4():
                 pdb.set_trace()
         print nmi_score_history
     # end-to-end training:
+    print 'begin end-to-end training'
     train(model,hyparams)
     # last-layer training:
     #last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
