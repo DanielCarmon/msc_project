@@ -269,7 +269,6 @@ def run3():
 
 def run4():
     global embedder, clusterer, tf_clustering, data_params, k, sess
-    #d = 224
     d = 299
     k = 2
     n_ = 30 # points per cluster
@@ -283,10 +282,10 @@ def run4():
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
-    clusterer = EMClusterer([n, embed_dim], k, n_iters = 10)
+    clusterer = EMClusterer([n, embed_dim], k, n_iters = 5)
     model = Model(data_params, embedder, clusterer, is_img=True,sess=sess)
     
-    hyparams = 20,data_dir,k,n_
+    hyparams = 50,data_dir,k,n_
 
     def train(model,hyparams):
         n_steps,data_dir,k,n_ = hyparams
@@ -320,12 +319,9 @@ def run4():
     # end-to-end training:
     train(model,hyparams)
     # last-layer training:
-    last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
-    model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
-    #hyparams = list(hyparams)
-    #hyparams[0]=30
-    #hyparams=tuple(hyparams)
-    train(model,hyparams)
+    #last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
+    #model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
+    #train(model,hyparams)
 
     # test
     # averagce over many of them?

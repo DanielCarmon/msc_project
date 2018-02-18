@@ -405,21 +405,25 @@ loaded_train_data = None # global
 loaded_test_data = None # global
 def get_bird_train_data2(data_dir,k,n):
     global loaded_train_data
+    
+    n_classes = 3 # when project is ready, this should be 100
+    perm = np.random.permutation(range(1,n_classes+1))
+    classes = perm[range(k)]
     if loaded_train_data is None:
         print 'loading train data'
-        loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in range(1, k+1)]
+        loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes]
     # loaded_train_data exists
     data_shape = loaded_train_data[0].shape
     xs = np.zeros(tuple([0])+data_shape[1:])
     ys_membership = np.zeros((0,k))
-    
+
     for i in range(k):
-        xs_i = loaded_train_data[i]
-        xs_i = xs_i[:30]
+        xs_i = loaded_train_data[i] # random class from first n_classes classes
+        # xs_i = xs_i[:30]
         
         # augment:
-        xs_i_augment = np.flip(xs_i,2) # horizontal flipping
-        xs_i = np.vstack((xs_i,xs_i_augment))
+        # xs_i_augment = np.flip(xs_i,2) # horizontal flipping
+        # xs_i = np.vstack((xs_i,xs_i_augment))
 
         xs_i = np.random.permutation(xs_i)
         xs = np.vstack((xs, xs_i[:n]))
@@ -432,16 +436,20 @@ def get_bird_train_data2(data_dir,k,n):
 
 def get_bird_test_data2(data_dir,k,n):
     global loaded_test_data
+    
+    n_classes = 3 # when project is ready, this should be 100
+    perm = np.random.permutation(range(1,n_classes+1))
+    classes = perm[range(k)]
     if loaded_test_data is None:
         print 'loading test data'
-        loaded_test_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in range(1,k+1)] # todo: remove hardwiring
+        loaded_test_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes] # todo: remove hardwiring
     # loaded_test_data exists
     data_shape = loaded_test_data[0].shape
     xs = np.zeros(tuple([0])+data_shape[1:])
     ys_membership = np.zeros((0,k))
     for i in range(k):
         xs_i = loaded_test_data[i]
-        xs_i = xs_i[30:]
+        # xs_i = xs_i[30:]
         xs_i = np.random.permutation(xs_i)
         xs = np.vstack((xs, xs_i[:n]))
 
@@ -453,3 +461,14 @@ def get_bird_test_data2(data_dir,k,n):
     # xs = xs[:,35:265,35:235,:] # crop
     # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
     return xs,ys
+
+def augment(data_dir):
+    """ this should only be called once """
+    for i in range(1,201):
+        class_data_path = data_dir+"/class{}.npy".format(str(i))
+        class_data = np.load(class_data_path)
+        print i,class_data_path
+        class_data_flipped = np.flip(class_data,2) # horizontal flipping
+        class_data = np.vstack((class_data_flipped,class_data_flipped))
+        np.save(class_data_path,class_data)
+augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds')
