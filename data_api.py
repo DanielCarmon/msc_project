@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import misc
 from PIL import Image
+from scipy.linalg import block_diag
 import pdb
 from scipy.misc import imread, imresize
 rand = np.random.randint
@@ -479,3 +480,24 @@ def augment(data_dir):
         class_data = np.vstack((class_data,class_data_flipped))
         np.save(class_data_path,class_data)
 #augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds')
+
+def load_specific_data(data_dir,inds):
+    def echo(x):
+        print 'loading:',x
+        return True
+    data_paths = [data_dir+"/class"+str(i)+".npy" for i in inds]
+    loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
+    loaded_data = [class_data[:class_data.shape[0]/2] for class_data in loaded_data] # one half is augmented data
+    class_szs = [class_data.shape[0] for class_data in loaded_data]
+    agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
+    ys = block_diag(*agreement_islands) # partition matrix
+    xs = np.concatenate(loaded_data,0)
+    # center crop:
+    # xs = xs[:,35:265,35:235,:] # crop
+    # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
+    return xs,ys
+
+def l2_normalize(arr):
+    arr_norms = np.sqrt(np.sum(arr**2,1))
+    arr_norms = np.reshape(arr_norms,[arr.shape[0],1])
+    return arr/arr_norms

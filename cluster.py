@@ -242,6 +242,7 @@ class EMClusterer(BaseClusterer):
         old_theta = self.theta
         self.theta = self.infer_theta(self.x, self.z)  # update
         diff = tf.reduce_sum((old_theta-self.theta)**2)
+        diff = tf.Print(diff,[diff],"diff:")
         self.diff_history.append(diff)
         # self.theta = tf.Print(self.theta,[z],"Z:")
         # self.theta = tf.Print(self.theta,[selftheta],"Theta:")

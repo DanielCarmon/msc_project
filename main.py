@@ -276,7 +276,7 @@ def run4():
     n = n_*k
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
-    vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
+    #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
     #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
     #embed_dim = 128
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
@@ -336,13 +336,68 @@ def run4():
         test_nmis.append(nmi_score)
     print 'test nmis:',test_nmis
     return train_nmis,test_nmis    
+def run5():
+    """ test Inception baseline for clustering bird classes 101:200 """
+    global embedder, clusterer, tf_clustering, data_params, k, sess
+    d = 299
+    data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
+    inds = range(101,201)
+    data = load_specific_data(data_dir,inds)
+    n = data[0].shape[0]
+    xs,ys = data
+    data_params = [n, d]
+    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
+    #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
+    #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
+    # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
+    embed_dim = 1001
+    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
 
+    tf_x = tf.placeholder(tf.float32, [None, d, d, 3])
+    print 'building embedding pipeline'
+    tf_endpoint = embedder.embed(tf_x)
+    print 'running global_variables_initializer()'
+    sess.run(tf.global_variables_initializer())
+    embedder.load_weights(sess)
+    def get_embedding(xs_batch,tf_endpoint):
+        feed_dict = {tf_x:xs_batch}
+        return sess.run(tf_endpoint,feed_dict=feed_dict)
+    np_embeddings = np.zeros((0,embed_dim))
+    for i in range(len(inds)):
+        xs_batch = xs[60*i:60*(i+1)]
+        print 'embedding batch ',i
+        embedded_xs_batch = get_embedding(xs_batch,tf_endpoint)
+        np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
+    normalize_data = False
+    if normalize_data:
+        np_embeddings = l2_normalize(np_embeddings)
+    n = np_embeddings.shape[0]
+    clusterer = EMClusterer([n, embed_dim], len(inds), n_iters = 10) 
+    tf_x = tf.placeholder(tf.float32, [n, embed_dim])
+    clusterer.set_data(tf_x)
+    feed_dict = {tf_x:np_embeddings}
+    tf_endpoint = clusterer.infer_clustering()
+    clustering,diff_history = sess.run([tf_endpoint,clusterer.diff_history],feed_dict=feed_dict)
+    #clustering,loss = sess.run([model.clusterer.history_list,model.loss],feed_dict=feed_dict)
+    clustering = clustering[-1]
+    pdb.set_trace()
+    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
+    print nmi_score
+    pdb.set_trace()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 config = tf.ConfigProto()
 config.gpu_options.allow_growth=True
 print('Starting TF Session')
 sess = tf.InteractiveSession(config=config)
+if __name__ == "__main__":
+    arg = sys.argv[1]
+    if arg=='4':
+        run4()
+    if arg=='5':
+        run5()
+
+'''
 train_nmis,test_nmis = [],[]
 try:
     train_nmis,test_nmis = run4()
@@ -352,6 +407,7 @@ except:
     pdb.set_trace()
 tf.reset_default_graph()
 print train_nmis,test_nmis
+'''
 print 'finish'
 pdb.set_trace()
 """
