@@ -30,7 +30,7 @@ class Model:
         print 'here'
         self.x_embed = self.embedder.embed(self.x)
         self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
-        lr = 0.0001
+        lr = 0.00001
         self.optimizer = self.optimizer_class(lr)
         self.clusterer.set_data(self.x_embed)
         self.clustering = self.clusterer.infer_clustering()

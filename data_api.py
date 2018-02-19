@@ -405,11 +405,12 @@ loaded_train_data = None # global
 loaded_test_data = None # global
 def get_bird_train_data2(data_dir,k,n):
     global loaded_train_data
-    n_classes = 5 # when project is ready, this should be 100
+    n_classes = 100 # when project is ready, this should be 100
     perm = np.random.permutation(range(1,n_classes+1))
     classes = perm[range(k)]
     print 'classes:',classes
-    if loaded_train_data is None:
+    #if loaded_train_data is None:
+    if True: # todo: change this to save time on loading data
         print 'loading train data'
         loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes]
     # loaded_train_data exists
@@ -418,7 +419,7 @@ def get_bird_train_data2(data_dir,k,n):
     ys_membership = np.zeros((0,k))
 
     for i in range(k):
-        xs_i = loaded_train_data[i] # random class from first n_classes classe
+        xs_i = loaded_train_data[i]
         mid = xs_i.shape[0]/2
         xs_i = np.vstack((xs_i[:20],xs_i[mid:mid+20]))
         
@@ -437,10 +438,12 @@ def get_bird_train_data2(data_dir,k,n):
 
 def get_bird_test_data2(data_dir,k,n):
     global loaded_test_data
-    n_classes = 5 # when project is ready, this should be 100
+    n_classes = 100 # when project is ready, this should be 100
     perm = np.random.permutation(range(1,n_classes+1))
     classes = perm[range(k)]
-    if loaded_test_data is None:
+    print 'classes:',classes
+    #if loaded_test_data is None:
+    if True:
         print 'loading test data'
         loaded_test_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes] # todo: remove hardwiring
     # loaded_test_data exists
@@ -467,7 +470,12 @@ def augment(data_dir):
     for i in range(1,201):
         class_data_path = data_dir+"/class{}.npy".format(str(i))
         class_data = np.load(class_data_path)
+        # ad-hoc fix:
+        n_class_data = class_data.shape[0]
+        mid = n_class_data/2
+        class_data = class_data[:mid]
         print i,class_data_path
         class_data_flipped = np.flip(class_data,2) # horizontal flipping
-        class_data = np.vstack((class_data_flipped,class_data_flipped))
+        class_data = np.vstack((class_data,class_data_flipped))
         np.save(class_data_path,class_data)
+#augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds')

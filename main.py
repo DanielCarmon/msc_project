@@ -285,7 +285,7 @@ def run4():
     clusterer = EMClusterer([n, embed_dim], k, n_iters = 5)
     model = Model(data_params, embedder, clusterer, is_img=True,sess=sess)
     
-    hyparams = 5,data_dir,k,n_
+    hyparams = 200,data_dir,k,n_
 
     def train(model,hyparams):
         n_steps,data_dir,k,n_ = hyparams
@@ -315,42 +315,45 @@ def run4():
             nmi_score_history.append(nmi_score)
             if debug: 
                 pdb.set_trace()
-        print nmi_score_history
+        print 'train_nmis:',nmi_score_history
+        return nmi_score_history
     # end-to-end training:
     print 'begin end-to-end training'
-    train(model,hyparams)
+    train_nmis = train(model,hyparams)
     # last-layer training:
     #last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
     #model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
     #train(model,hyparams)
-
-    # test
-    # averagce over many of them?
-    xs_test, ys_test = get_bird_test_data2(data_dir,k, n_)
-    feed_dict = {model.x: xs_test,model.y:ys_test}
-    clustering,loss = sess.run([model.clusterer.history_list,model.loss],feed_dict=feed_dict)
-    clustering = clustering[-1]
-    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_test, 1))
-    print 'test loss:',loss
-    print 'test nmi:',nmi_score
-    return nmi_score
+    print 'begin test'
+    test_nmis = []
+    n_iters = 100
+    for _ in range(n_iters):
+        xs_test, ys_test = get_bird_test_data2(data_dir,k, n_)
+        feed_dict = {model.x: xs_test,model.y:ys_test}
+        clustering,loss = sess.run([model.clusterer.history_list,model.loss],feed_dict=feed_dict)
+        clustering = clustering[-1]
+        nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_test, 1))
+        test_nmis.append(nmi_score)
+    print 'test nmis:',test_nmis
+    return train_nmis,test_nmis    
 
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-res = []
 config = tf.ConfigProto()
 config.gpu_options.allow_growth=True
 print('Starting TF Session')
 sess = tf.InteractiveSession(config=config)
+train_nmis,test_nmis = [],[]
 try:
-    res.append(run4())
+    train_nmis,test_nmis = run4()
 except:
     exc =  sys.exc_info()
     traceback.print_exception(*exc)
     pdb.set_trace()
 tf.reset_default_graph()
-print res
+print train_nmis,test_nmis
 print 'finish'
+pdb.set_trace()
 """
 # plot approximately how good is each hypothesis.
 #from pylab import *
