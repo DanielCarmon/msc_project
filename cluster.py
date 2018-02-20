@@ -221,6 +221,57 @@ class GDKMeansClusterer2(BaseClusterer):
         return membership_mat
 
 
+class KMeansClusterer(BaseClusterer):
+    ''' Classic Hard-decision clustering '''
+
+    def __init__(self, data_params, k, n_iters=100):
+        self.curr_step = 0
+        self.n_iters = n_iters
+        self.k = k
+        self.n, self.d = tuple(data_params)
+        self.init_params()  # TF constants for inner-optimization
+        self.history_list = []
+
+    def set_data(self, x):
+        self.x = x
+
+    def init_params(self):
+        self.c = tf.random_normal([self.k, self.d], seed=2018)  # centroid matrix
+
+    def update_params(self):  # overrides super class method
+        self.curr_step += 1
+        self.b = self.get_membership_matrix(self.c,self.x, self.k)
+        self.c = self.get_centroid_matrix(self.b,self.x)
+        self.history_list.append(self.b)
+    def infer_clustering(self):
+        for _ in tqdm(range(self.n_iters), desc="Building {} Layers".format(self.__class__.__name__)):
+            self.update_params()
+        history_tensor = tf.convert_to_tensor(self.history_list)  # [n_iters,n,k] tensor of membership matrices
+        return history_tensor
+
+    def clean_empty_centroids(self):
+        self.membership_mat = self.get_membership_matrix(self.c, self.x)
+        cond = self.has_empty_centroid
+        body = self.replace_centroid
+        self.replace_mask = tf.zeros((self.k, self.d))  # init
+        # self.c = tf.Print(self.c,[self.c],"Start cleaning loop")
+        wl = tf.while_loop(cond, body, [self.c])
+        # wl = tf.Print(wl,[0],"End cleaning loop")
+        return wl
+
+    def replace_centroid(self, c):  # cleaning loop body
+        k, d = self.k, self.d
+        replace_mask = self.replace_mask
+        rand_mat = tf.random_uniform((k, d))
+        add = replace_mask * rand_mat
+        sub = replace_mask * c
+        return c + add - sub
+
+    def has_empty_centroid(self, c):  # cleaning loop cond
+        x = self.x
+        self.membership_mat = self.get_membership_matrix(c, x)
+
+
 class EMClusterer(BaseClusterer):
     def __init__(self, data_params, k, n_iters=20):
         self.n_iters = n_iters

@@ -341,10 +341,13 @@ def run5():
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 299
     data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
-    inds = range(101,201)
+    #inds = range(101,201)
+    inds = range(101,151)
+    n_clusters = len(inds)
     data = load_specific_data(data_dir,inds)
     n = data[0].shape[0]
-    xs,ys = data
+    xs,ys,ys_membership = data
+    
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
     #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
@@ -368,21 +371,33 @@ def run5():
         print 'embedding batch ',i
         embedded_xs_batch = get_embedding(xs_batch,tf_endpoint)
         np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
-    normalize_data = False
-    if normalize_data:
-        np_embeddings = l2_normalize(np_embeddings)
+    np_embeddings_normalized = l2_normalize(np_embeddings)
     n = np_embeddings.shape[0]
-    clusterer = EMClusterer([n, embed_dim], len(inds), n_iters = 10) 
+    
+    from KM_orig import km_orig as kmeans
+    print 'start clustering unnormalized data'
+    centroids, assignments = kmeans(np_embeddings,len(inds))
+    print 'start clustering normalized data'
+    centroids_normalized, assignments_normalized = kmeans(np_embeddings_normalized,len(inds))
+
+
+    """
+    # EM clustering of baseline embeddings:
+    clusterer = EMClusterer([n, embed_dim], n_clusters, n_iters = 20) 
     tf_x = tf.placeholder(tf.float32, [n, embed_dim])
     clusterer.set_data(tf_x)
     feed_dict = {tf_x:np_embeddings}
     tf_endpoint = clusterer.infer_clustering()
     clustering,diff_history = sess.run([tf_endpoint,clusterer.diff_history],feed_dict=feed_dict)
-    #clustering,loss = sess.run([model.clusterer.history_list,model.loss],feed_dict=feed_dict)
     clustering = clustering[-1]
     pdb.set_trace()
     nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
     print nmi_score
+    """
+    nmi_score1 = nmi(assignments, np.argmax(ys_membership,1))
+    nmi_score2 = nmi(assignments_normalized, np.argmax(ys_membership,1))
+    print nmi_score1
+    print nmi_Score2
     pdb.set_trace()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)

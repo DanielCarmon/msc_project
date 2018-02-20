@@ -491,11 +491,13 @@ def load_specific_data(data_dir,inds):
     class_szs = [class_data.shape[0] for class_data in loaded_data]
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
+    membership_islands = [np.ones((sz,1)) for sz in class_szs]
+    ys_membership = block_diag(*membership_islands) # membership matrix
     xs = np.concatenate(loaded_data,0)
     # center crop:
     # xs = xs[:,35:265,35:235,:] # crop
     # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
-    return xs,ys
+    return xs,ys,ys_membership
 
 def l2_normalize(arr):
     arr_norms = np.sqrt(np.sum(arr**2,1))
