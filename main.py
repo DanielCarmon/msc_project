@@ -9,14 +9,42 @@ import matplotlib.image as mpimg
 from tqdm import tqdm
 from datetime import datetime
 import pdb
+import sys
+import traceback
 import inspect
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 
+def my_parser(argv):
+    ret = {}
+    n = len(argv)
+    for i in range(n):
+        if argv[i][:2]=="--": # is flag
+            val = argv[i+1]
+            try:
+                val = int(val)
+            except:
+                try:
+                    val = float(val)
+                except:
+                    val = argv[i+1]
+            ret[argv[i][2:]]=val
+    
+    if ret['cluster'] == "em":
+        ret['cluster'] = EMClusterer
+    if ret['cluster'] == "kmeans":
+        ret['cluster'] = GDKMeansClusterer2
+    if not 'n_test_classes' in ret.keys():
+        ret['n_test_classes'] = 100
+    return ret
+
 def linenum():
     """ Returns current line number """
     return inspect.currentframe().f_back.f_lineno
-
+def get_tb():
+    pdb.set_trace()
+    exc = sys.exc_info()
+    return traceback.print_exception(*exc)
 
 def trim(vec, digits=3):
     factor = 10 ** digits
@@ -267,13 +295,18 @@ def run3():
     # scatter_3d()
     print 'last projection:', param_history[-1]
 
-def run4():
+def run4(arg_dict):
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 299
     k = 2
-    n_ = 20 # points per cluster
+    if 'n_train_classes' in arg_dict.keys():
+        k = arg_dict['n_train_classes']
+    n_ = 15 # points per cluster
     data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
     n = n_*k
+    clst_module = arg_dict['cluster']
+    hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
+    model_lr = arg_dict['model_lr']
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
     #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
@@ -281,14 +314,73 @@ def run4():
     #embed_dim = 128
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
-    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
-    clusterer = EMClusterer([n, embed_dim], k, n_iters = 5)
-    model = Model(data_params, embedder, clusterer, is_img=True,sess=sess)
-    
-    hyparams = 200,data_dir,k,n_
+    with tf.device('/device:GPU:0'):
+        embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+        clusterer = clst_module([n, embed_dim], k, hp)
+        model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False)
+    # prepare test data
+    print 'Building test pipeline'
+    n_test_classes = arg_dict['n_test_classes']
+    if 'offset' in arg_dict.keys():
+        tmp_offset = arg_dict['offset']
+    else:
+        tmp_offset = 0
+    test_classes = range(101+tmp_offset,101+tmp_offset+n_test_classes)
+    test_data = load_specific_data(data_dir,test_classes)
+    test_xs,test_ys,test_ys_membership = test_data
+    n_test = test_xs.shape[0]
+    with tf.device('/device:GPU:1'):
+        test_data_ph_em = tf.placeholder(tf.float32,[n_test,embed_dim])
+        test_clusterer_em = EMClusterer([n_test,embed_dim],len(test_classes))
+        test_clusterer_em.set_data(test_data_ph_em) 
+        if clst_module == EMClusterer: test_clusterer_em.bandwidth = hp
+        test_clustering_em = test_clusterer_em.infer_clustering()
+        global test_clusterin_em 
+        test_data_ph_km = tf.placeholder(tf.float32,[n_test,embed_dim])
+        test_clusterer_km = KMeansClusterer([n_test,embed_dim],len(test_classes))
+        test_clusterer_km.set_data(test_data_ph_km)
+        test_clustering_km = test_clusterer_km.infer_clustering()
 
+
+    def test(): 
+        print 'begin test'
+        # 1) embed batch by batch
+        def get_embedding(xs_batch):
+            feed_dict = {model.x:xs_batch}
+            return sess.run(model.x_embed,feed_dict=feed_dict)
+        np_embeddings = np.zeros((0,embed_dim))
+        i=0
+        n_batch = 400
+        while n_batch*i<n_test:
+            xs_batch = test_xs[n_batch*i:n_batch*(i+1)]       
+            print 'embedding batch ',i
+            embedded_xs_batch = get_embedding(xs_batch)
+            np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
+            i+=1
+        #np_embeddings_normalized = l2_normalize(np_embeddings)
+        # 2) cluster
+        print 'testing with em clusterer:'
+        feed_dict = {test_data_ph_em:np_embeddings}
+        clustering_em,diff_history_em = sess.run([test_clustering_em,test_clusterer_em.diff_history],feed_dict=feed_dict)
+        
+        print 'testing with km clusterer:'
+        feed_dict = {test_data_ph_km:np_embeddings}
+        clustering_km,diff_history_km = sess.run([test_clustering_km,test_clusterer_km.diff_history],feed_dict=feed_dict)
+
+        # 3) calculate score
+        last_em, last_km = clustering_em[-1], clustering_km[-1]
+        test_nmi_em = nmi(np.argmax(last_em, 1), np.argmax(test_ys_membership, 1))
+        test_nmi_km = nmi(np.argmax(last_km, 1), np.argmax(test_ys_membership, 1))
+        print test_nmi_em,test_nmi_km
+        return test_nmi_em,test_nmi_km
+    
+    i_test = 5 
+    hyparams = 60000,data_dir,k,n_,i_test
     def train(model,hyparams):
-        n_steps,data_dir,k,n_ = hyparams
+        global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
+        test_scores_em = [] 
+        test_scores_km = []
+        n_steps,data_dir,k,n_,i_test = hyparams
         param_history = []
         loss_history = []
         nmi_score_history = []
@@ -296,11 +388,23 @@ def run4():
 
         debug = False
         for i in range(n_steps): 
-            xs, ys = get_bird_train_data2(data_dir,k, n_)
+            xs, ys = get_bird_train_data2(data_dir,k, n_) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
+            if i%i_test==0: # case where i==0 is baseline
+                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis.npy',np.array(nmi_score_history))
+                test_score_em,test_score_km = test()
+                test_scores_em.append(test_score_em)
+                test_scores_km.append(test_score_km)
+                print 'test results thus far with em:',test_scores_em
+                print 'test results thus far with km:',test_scores_km
+                #cp_file_name = ''
+                #pdb.set_trace()
+                #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
+
             try:
                 _,tensor1,tensor2,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict)
+                #pdb.set_trace()
             except:
                 print 'error occured'
                 exc =  sys.exc_info()
@@ -316,33 +420,34 @@ def run4():
             if debug: 
                 pdb.set_trace()
         print 'train_nmis:',nmi_score_history
-        return nmi_score_history
+        return nmi_score_history,[test_scores_em,test_scores_km]
+
+    print 'begin training'
     # end-to-end training:
-    print 'begin end-to-end training'
-    train_nmis = train(model,hyparams)
-    # last-layer training:
-    #last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
-    #model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
-    #train(model,hyparams)
-    print 'begin test'
-    test_nmis = []
-    n_iters = 100
-    for _ in range(n_iters):
-        xs_test, ys_test = get_bird_test_data2(data_dir,k, n_)
-        feed_dict = {model.x: xs_test,model.y:ys_test}
-        clustering,loss = sess.run([model.clusterer.history_list,model.loss],feed_dict=feed_dict)
-        clustering = clustering[-1]
-        nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_test, 1))
-        test_nmis.append(nmi_score)
-    print 'test nmis:',test_nmis
-    return train_nmis,test_nmis    
+    test_scores_e2e = []
+    test_scores_ll = []
+    if arg_dict['train_params']!="last":
+        try:
+            train_nmis,test_scores_e2e = train(model,hyparams)
+        except:
+            print get_tb()
+            pdb.set_trace()
+        pdb.set_trace()
+    # last-layer training (use this in case of overfitting):
+    last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
+    model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
+    train_nmis,test_scores_ll = train(model,hyparams)
+    save_path = embedder.save_weights(sess)
+    print 'end training' 
+    print 'e2e:',test_scores_e2e
+    print 'll:',test_scores_ll
+    return test_scores_e2e,test_scores_ll
 def run5():
     """ test Inception baseline for clustering bird classes 101:200 """
-    global embedder, clusterer, tf_clustering, data_params, k, sess
+    global sess
     d = 299
     data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
-    #inds = range(101,201)
-    inds = range(101,151)
+    inds = range(101,201)
     n_clusters = len(inds)
     data = load_specific_data(data_dir,inds)
     n = data[0].shape[0]
@@ -365,51 +470,63 @@ def run5():
     def get_embedding(xs_batch,tf_endpoint):
         feed_dict = {tf_x:xs_batch}
         return sess.run(tf_endpoint,feed_dict=feed_dict)
+    #np_embeddings = np.zeros((0,2048))
     np_embeddings = np.zeros((0,embed_dim))
-    for i in range(len(inds)):
+    for i in range(len(inds)): # embed data batch by batch
         xs_batch = xs[60*i:60*(i+1)]
         print 'embedding batch ',i
         embedded_xs_batch = get_embedding(xs_batch,tf_endpoint)
         np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
     np_embeddings_normalized = l2_normalize(np_embeddings)
     n = np_embeddings.shape[0]
-    
-    from KM_orig import km_orig as kmeans
-    print 'start clustering unnormalized data'
-    centroids, assignments = kmeans(np_embeddings,len(inds))
-    print 'start clustering normalized data'
-    centroids_normalized, assignments_normalized = kmeans(np_embeddings_normalized,len(inds))
-
-
-    """
-    # EM clustering of baseline embeddings:
-    clusterer = EMClusterer([n, embed_dim], n_clusters, n_iters = 20) 
+    from sklearn import cluster
+    KMeans = cluster.KMeans
+    km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
+    km_normalized = KMeans(n_clusters=n_clusters).fit(np_embeddings_normalized)
+    import pickle
+    f = open('sklearn_kmeans_res.txt','w')
+    labels = km.labels_
+    labels_normalized = km_normalized.labels_
+    nmi_score = nmi(labels, np.argmax(ys_membership, 1))
+    nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
+    scores = [nmi_score,nmi_score_normalized]
+    pickle.dump(scores,f)
+    print scores
+    pdb.set_trace()
+    while True:
+        a = 1
+    # KMeans clustering of baseline embeddings:
+    clusterer = KMeansClusterer([n, embed_dim], n_clusters) 
     tf_x = tf.placeholder(tf.float32, [n, embed_dim])
     clusterer.set_data(tf_x)
-    feed_dict = {tf_x:np_embeddings}
     tf_endpoint = clusterer.infer_clustering()
+    feed_dict = {tf_x:np_embeddings}
     clustering,diff_history = sess.run([tf_endpoint,clusterer.diff_history],feed_dict=feed_dict)
     clustering = clustering[-1]
-    pdb.set_trace()
-    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-    print nmi_score
-    """
-    nmi_score1 = nmi(assignments, np.argmax(ys_membership,1))
-    nmi_score2 = nmi(assignments_normalized, np.argmax(ys_membership,1))
-    print nmi_score1
-    print nmi_Score2
+    # calculate score:
+    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_membership, 1))
+    print 'unnormalized data nmi_score:', nmi_score 
+    feed_dict = {tf_x:np_embeddings_normalized}
+    clustering,diff_history = sess.run([tf_endpoint,clusterer.diff_history],feed_dict=feed_dict)
+    clustering = clustering[-1]
+    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_membership, 1))
+    print 'normalized data nmi_score:', nmi_score 
     pdb.set_trace()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-config = tf.ConfigProto()
-config.gpu_options.allow_growth=True
+config = tf.ConfigProto(allow_soft_placement=True)
+#config.log_device_placement = True
+#config.gpu_options.allow_growth=True
 print('Starting TF Session')
 sess = tf.InteractiveSession(config=config)
 if __name__ == "__main__":
-    arg = sys.argv[1]
-    if arg=='4':
-        run4()
-    if arg=='5':
+    argv = sys.argv
+    run = argv[1]
+    if len(argv)>2:
+        arg_dict = my_parser(argv)
+    if run=='4':
+        run4(arg_dict)
+    if run=='5':
         run5()
 
 '''

@@ -402,65 +402,24 @@ def get_bird_test_data(k,n,d):
     ys = np.matmul(ys_membership, ys_membership.T)
     return np.array(xs), ys
 
-loaded_train_data = None # global
-loaded_test_data = None # global
+loaded_train_data = None # global. data on RAM
 def get_bird_train_data2(data_dir,k,n):
     global loaded_train_data
-    n_classes = 100 # when project is ready, this should be 100
-    perm = np.random.permutation(range(1,n_classes+1))
+    train_classes = range(1,101)
+    perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
-    print 'classes:',classes
-    #if loaded_train_data is None:
-    if True: # todo: change this to save time on loading data
+    #print 'classes:',classes
+    if loaded_train_data is None:
         print 'loading train data'
-        loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes]
-    # loaded_train_data exists
-    data_shape = loaded_train_data[0].shape
-    xs = np.zeros(tuple([0])+data_shape[1:])
-    ys_membership = np.zeros((0,k))
-
-    for i in range(k):
-        xs_i = loaded_train_data[i]
-        mid = xs_i.shape[0]/2
-        xs_i = np.vstack((xs_i[:20],xs_i[mid:mid+20]))
-        
-        # augment:
-        # xs_i_augment = np.flip(xs_i,2) # horizontal flipping
-        # xs_i = np.vstack((xs_i,xs_i_augment))
-
-        xs_i = np.random.permutation(xs_i)
-        xs = np.vstack((xs, xs_i[:n]))
-
-        membership_block = np.zeros((n, k))
-        membership_block[:, i] = 1
-        ys_membership = np.vstack((ys_membership, membership_block))
-    ys = np.matmul(ys_membership,ys_membership.T)
-    return xs,ys
-
-def get_bird_test_data2(data_dir,k,n):
-    global loaded_test_data
-    n_classes = 100 # when project is ready, this should be 100
-    perm = np.random.permutation(range(1,n_classes+1))
-    classes = perm[range(k)]
-    print 'classes:',classes
-    #if loaded_test_data is None:
-    if True:
-        print 'loading test data'
-        loaded_test_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in classes] # todo: remove hardwiring
-    # loaded_test_data exists
-    data_shape = loaded_test_data[0].shape
-    xs = np.zeros(tuple([0])+data_shape[1:])
-    ys_membership = np.zeros((0,k))
-    for i in range(k):
-        xs_i = loaded_test_data[i]
-        xs_i = xs_i[xs_i.shape[0]-20:]
-        xs_i = np.random.permutation(xs_i)
-        xs = np.vstack((xs, xs_i[:n]))
-
-        membership_block = np.zeros((n, k))
-        membership_block[:, i] = 1  # notice that this "label" is only for partition purposes
-        ys_membership = np.vstack((ys_membership, membership_block))
-    ys = np.matmul(ys_membership,ys_membership.T)
+        loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
+    loaded_data = [loaded_train_data[c-1] for c in classes]
+    loaded_data = [np.random.permutation(class_data)[:n] for class_data in loaded_data] # take random subsample 
+    class_szs = [class_data.shape[0] for class_data in loaded_data]
+    agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
+    ys = block_diag(*agreement_islands) # partition matrix
+    #membership_islands = [np.ones((sz,1)) for sz in class_szs]
+    #ys_membership = block_diag(*membership_islands) # membership matrix
+    xs = np.concatenate(loaded_data,0)
     # center crop:
     # xs = xs[:,35:265,35:235,:] # crop
     # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
@@ -481,13 +440,16 @@ def augment(data_dir):
         np.save(class_data_path,class_data)
 #augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds')
 
-def load_specific_data(data_dir,inds):
+def load_specific_data(data_dir,inds,augment=False):
+    global loaded_test_data
     def echo(x):
         print 'loading:',x
         return True
+    
     data_paths = [data_dir+"/class"+str(i)+".npy" for i in inds]
     loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
-    loaded_data = [class_data[:class_data.shape[0]/2] for class_data in loaded_data] # one half is augmented data
+    if not augment:
+        loaded_data = [class_data[:class_data.shape[0]/2] for class_data in loaded_data] # one half is augmented data
     class_szs = [class_data.shape[0] for class_data in loaded_data]
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
