@@ -280,7 +280,7 @@ class KMeansClusterer(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=5):
+    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=10):
         self.n_iters = n_iters
         self.bandwidth = bandwidth
         self.k = k
@@ -310,13 +310,13 @@ class EMClusterer(BaseClusterer):
 
     @staticmethod
     def infer_theta(x, z):
-        x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
+        #x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
         clust_sums = tf.matmul(tf.transpose(z), x, name='clust_sums')  # [k,d]
-        clust_sums = tf.Print(clust_sums, [clust_sums], "clust_sums",summarize=100)
+        #clust_sums = tf.Print(clust_sums, [clust_sums], "clust_sums",summarize=100)
         clust_sz = tf.reduce_sum(z, axis=0, name='clust_sz')  # [k]
         eps = 1e-1
         clust_sz+=eps
-        clust_sz = tf.Print(clust_sz, [clust_sz], "clust_sz",summarize=100)
+        #clust_sz = tf.Print(clust_sz, [clust_sz], "clust_sz",summarize=100)
         normalizer = tf.matrix_inverse(tf.diag(clust_sz), name='normalizer')  # [k,k]
         # normalizer = tf.Print(normalizer,[normalizer[0],normalizer[1]],"normalizer:")
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids
@@ -324,12 +324,12 @@ class EMClusterer(BaseClusterer):
         return theta
     @staticmethod
     def infer_z(x, theta, bandwidth):
-        x = tf.Print(x,[x[0],x[1],"|",theta[0],theta[1]],"Entered infer_z func with x,theta = ")
+        #x = tf.Print(x,[x[0],x[1],"|",theta[0],theta[1]],"Entered infer_z func with x,theta = ")
         outer_subtraction = tf.subtract(x[:, :, None], tf.transpose(theta), name='out_sub')  # [n,d,k]
         z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
         z = tf.nn.softmax(bandwidth*z, dim=1)
         check = tf.is_nan(tf.reduce_sum(z))
-        z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
+        #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z

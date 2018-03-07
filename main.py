@@ -301,7 +301,7 @@ def run4(arg_dict):
     k = 2
     if 'n_train_classes' in arg_dict.keys():
         k = arg_dict['n_train_classes']
-    n_ = 15 # points per cluster
+    n_ = 20 # points per cluster
     data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
     n = n_*k
     clst_module = arg_dict['cluster']
@@ -403,20 +403,34 @@ def run4(arg_dict):
                 #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
 
             try:
-                _,tensor1,tensor2,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict)
-                #pdb.set_trace()
+                before1 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
+                before2 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
+                before3 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
+                before4 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
+                before5 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
+                for i in range(100):
+                    _,param_dict,activations_dict = sess.run([step, embedder.param_dict,embedder.activations_dict], feed_dict=feed_dict)
+                    pdb.set_trace()
+                    old_params = param_dict
+                    old_activations = activations_dict
+                #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
             except:
                 print 'error occured'
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
                 pdb.set_trace()
-            print "clustring diffs:",clustering_diffs
             clustering = clustering_history[-1]
             # ys_pred = np.matmul(clustering,clustering.T)
             # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
             nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-            print 'nmi_score: ',nmi_score
+            print 'before1:',before1
+            print 'before2:',before2
+            print 'before3:',before3
+            print 'before4:',before4
+            print 'before5:',before5
+            print 'after: ',nmi_score
             nmi_score_history.append(nmi_score)
+            print "clustring diffs:",clustering_diffs
             if debug: 
                 pdb.set_trace()
         print 'train_nmis:',nmi_score_history
@@ -434,7 +448,10 @@ def run4(arg_dict):
             pdb.set_trace()
         pdb.set_trace()
     # last-layer training (use this in case of overfitting):
-    last_layer_params = filter(lambda x: ("logits" in str(x)) and not ("aux" in str(x)),embedder.params)
+
+    #filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
+    filter_cond = lambda x: ("aux_logits/FC/" in str(x))
+    last_layer_params = filter(filter_cond,embedder.params)
     model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
     train_nmis,test_scores_ll = train(model,hyparams)
     save_path = embedder.save_weights(sess)

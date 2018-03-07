@@ -15,7 +15,7 @@ def nan_alarm(x):
 class Model:
     optimizer_class = tf.train.AdamOptimizer
     #optimizer_class = tf.train.GradientDescentOptimizer
-    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False):
+    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True):
         self.sess = sess
         self.embedder = embedder
         self.clusterer = clusterer
@@ -29,7 +29,6 @@ class Model:
         #self.y = tf.placeholder(tf.float32, [self.n, self.n])
         self.y = tf.placeholder(tf.float32, [None, None])
         self.y = tf.cast(self.y, tf.float32)
-        print 'here'
         self.for_training = for_training
         self.x_embed = self.embedder.embed(self.x, self.for_training)
         ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
@@ -46,9 +45,15 @@ class Model:
         #self.loss = tf.Print(self.loss, [self.grads],'grad')
         #for i in range(1):
         #    self.loss = tf.Print(self.loss,[self.grads[0]],'grad{}'.format(str(i)))
-        
-        self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])], 'gradient:', summarize=100)
-        self.loss = tf.constant(1.) * self.loss
+        self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])  ], 'gradient:', summarize=100)
+
+        regularizer,beta = 0.,1e-10
+        if regularize:
+            for param in self.embedder.params:
+                print 'regularizing ',param
+                regularizer += tf.nn.l2_loss(param)
+        self.loss = beta*regularizer + self.loss
+        self.loss = 1.*self.loss
         self.train_step = self.optimizer.minimize(self.loss)
         self.sess.run(tf.global_variables_initializer())
         self.embedder.load_weights(self.sess)
