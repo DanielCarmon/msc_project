@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from nn import *
 import pdb
 from tqdm import tqdm
+from functools import reduce
 from embed import *
 from cluster import *
 
@@ -47,7 +48,7 @@ class Model:
         #    self.loss = tf.Print(self.loss,[self.grads[0]],'grad{}'.format(str(i)))
         self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])  ], 'gradient:', summarize=100)
 
-        regularizer,beta = 0.,1e-10
+        regularizer,beta = 0.,0.
         if regularize:
             for param in self.embedder.params:
                 print 'regularizing ',param
@@ -61,8 +62,9 @@ class Model:
     def loss_func(y_pred, y):
         # y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)
         compare = y_pred[-1]
+        #compare = y_pred
         tensor_shape = tf.shape(compare)
-        normalize = (tensor_shape[0] * tensor_shape[1])
+        normalize = tf.reduce_prod(tensor_shape) # num of entries
         # normalize = 1.
         # print 'gradient normalizing factor = ',normalize
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)

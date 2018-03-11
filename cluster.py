@@ -73,10 +73,7 @@ class GDKMeansClusterer1(BaseClusterer):
         self.cost_log.append(cost)
         grads = tf.gradients(cost, self.b)[0]
         grads = tf.Print(grads, [cost], "cost:")
-        for i in range(1):
-            grads = tf.Print(grads, [grads[i]], "grads[{}]:".format(str(i)))
         grads = tf.Print(grads, [tf.reduce_sum(grads ** 2)], "grads_total:")
-        # grads = tf.Print(grads,[cost],"cost:")
         self.grad_log += [grads]
         # mu = self.learn_rate / np.sqrt(self.curr_step)
         mu = self.learn_rate
@@ -99,10 +96,10 @@ class GDKMeansClusterer1(BaseClusterer):
     def get_centroid_matrix(b, x):
         # returns [NUM_CLUSTERS,EMBED_DIM] tf tensor
         # x = tf.Print(x,[x[0],x[-1],"|",b[0],b[1]],"x,b = ")
-        for i in range(1):
-            x = tf.Print(x, [b[i]], "b_probs[{}]:".format(str(i)))
+        #for i in range(1):
+        #    x = tf.Print(x, [b[i]], "b_probs[{}]:".format(str(i)))
         clst_sz = tf.reduce_sum(b, axis=0)  # == tf.transpose(b)*tf.ones([n,1])
-        clst_sz = tf.Print(clst_sz, [clst_sz[i] for i in range(4)], message='cluster sizes:')
+        #clst_sz = tf.Print(clst_sz, [clst_sz], message='cluster sizes:')
         inv_sz = tf.matrix_inverse(tf.diag(clst_sz))
         matmul_tmp = tf.matmul(inv_sz, tf.transpose(b))
         centroid_matrix = tf.matmul(matmul_tmp, x)
@@ -114,43 +111,45 @@ class GDKMeansClusterer1(BaseClusterer):
 class GDKMeansClusterer2(BaseClusterer):
     ''' optimize over cluster centroids '''
 
-    def __init__(self, data_params, k, learn_rate, n_iters=300):
+    def __init__(self, data_params, k, learn_rate, n_iters=100, planted_values = False):
         self.learn_rate = learn_rate
         self.curr_step = 0
         self.n_iters = n_iters
         self.k = k
         GDKMeansClusterer2.k = k  # todo: fix this
-        self.n, self.d = tuple(data_params)
+        self.n, self.d = tuple(data_params) 
+        self.planted_values = planted_values
         self.init_params()  # TF constants for inner-optimization
         self.grad_log = []
         self.cost_log = []
         self.diff_history = []
+        self.maxgrad_history = []
     def set_data(self, x):
         self.x = x
-
     def init_params(self):
-        self.c = tf.random_normal([self.k, self.d], seed=2018)  # centroid matrix
+        if self.planted_values:
+            print 'setting up planted values based centroid matrix'
+            self.b_ph = tf.placeholder(tf.float32,[self.n,self.k]) # belief placeholder
+            self.c = GDKMeansClusterer1.get_centroid_matrix(self.b_ph,self.x)
+        else:
+            self.c = tf.random_normal([self.k, self.d], seed=2018)  # centroid matrix
         # self.c = self.x[0],self.x[90],self.x[105],self.x[-1]
         # self.c = tf.Print(self.c,[self.c[i] for i in range(4)],"Init centroids:")
         self.history_list = []  # different membership matrices across optimization
 
     def update_params(self):  # overrides super class method
         self.curr_step += 1
-        ""
-        # self.c = self.clean_empty_centroids()
-        # self.c = nan_alarm(self.c)
-        # for i in range(3):
-        #    self.c = tf.Print(self.c,[self.c[i]],"centroid{}".format(str(i)))
-        # self.x = tf.Print(self.x,[self.x],"x:")
-
+        
         cost = self.obj_f(self.c, self.x)
-        cost = tf.Print(cost, [cost, self.x], 'cost')
-        cost = tf.constant(1.) * cost
+        #cost = tf.Print(cost, [cost, self.x], 'cost')
+        #cost = tf.constant(1.) * cost
         self.cost_log.append(cost)
         # cost = nan_alarm(cost)
         grads = tf.gradients(cost, self.c)[0]
         # grads = nan_alarm(grads)
         self.grad_log += [grads]
+        maxgrad = tf.reduce_max(grads)
+        self.maxgrad_history.append(maxgrad)
         #mu = self.learn_rate / np.sqrt(self.curr_step)
         mu = self.learn_rate
         # self.c = tf.Print(self.c,[self.c],"before")
@@ -280,7 +279,7 @@ class KMeansClusterer(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=10):
+    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20):
         self.n_iters = n_iters
         self.bandwidth = bandwidth
         self.k = k

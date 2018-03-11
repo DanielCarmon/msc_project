@@ -301,7 +301,8 @@ def run4(arg_dict):
     k = 2
     if 'n_train_classes' in arg_dict.keys():
         k = arg_dict['n_train_classes']
-    n_ = 20 # points per cluster
+    n_gpu_can_handle = 100
+    n_ = n_gpu_can_handle/k # points per cluster
     data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
     n = n_*k
     clst_module = arg_dict['cluster']
@@ -317,7 +318,7 @@ def run4(arg_dict):
     with tf.device('/device:GPU:0'):
         embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
         clusterer = clst_module([n, embed_dim], k, hp)
-        model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False)
+        model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False)
     # prepare test data
     print 'Building test pipeline'
     n_test_classes = arg_dict['n_test_classes']
@@ -387,6 +388,7 @@ def run4(arg_dict):
         step = model.train_step
 
         debug = False
+        #xs, ys = get_bird_train_data2(data_dir,k, n_) # for debug
         for i in range(n_steps): 
             xs, ys = get_bird_train_data2(data_dir,k, n_) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
@@ -403,14 +405,16 @@ def run4(arg_dict):
                 #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
 
             try:
+                '''
                 before1 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
                 before2 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
                 before3 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
                 before4 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
                 before5 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
-                for i in range(100):
-                    _,param_dict,activations_dict = sess.run([step, embedder.param_dict,embedder.activations_dict], feed_dict=feed_dict)
-                    pdb.set_trace()
+                '''
+                for i in range(1):
+                    _,param_dict,activations_dict,clustering_history,clustering_diffs = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history], feed_dict=feed_dict)
+                    #pdb.set_trace()
                     old_params = param_dict
                     old_activations = activations_dict
                 #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
@@ -423,11 +427,11 @@ def run4(arg_dict):
             # ys_pred = np.matmul(clustering,clustering.T)
             # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
             nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-            print 'before1:',before1
-            print 'before2:',before2
-            print 'before3:',before3
-            print 'before4:',before4
-            print 'before5:',before5
+            #print 'before1:',before1
+            #print 'before2:',before2
+            #print 'before3:',before3
+            #print 'before4:',before4
+            #print 'before5:',before5
             print 'after: ',nmi_score
             nmi_score_history.append(nmi_score)
             print "clustring diffs:",clustering_diffs
