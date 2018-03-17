@@ -31,7 +31,7 @@ class Model:
         self.y = tf.placeholder(tf.float32, [None, None])
         self.y = tf.cast(self.y, tf.float32)
         self.for_training = for_training
-        self.x_embed = self.embedder.embed(self.x, self.for_training)
+        self.x_embed = self.embedder.embed(self.x)
         ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
         self.lr = lr
         self.optimizer = self.optimizer_class(lr)
@@ -56,8 +56,9 @@ class Model:
         self.loss = beta*regularizer + self.loss
         self.loss = 1.*self.loss
         self.train_step = self.optimizer.minimize(self.loss)
-        self.sess.run(tf.global_variables_initializer())
-        self.embedder.load_weights(self.sess)
+        if not isinstance(embedder,ProjectionEmbedder):
+            self.sess.run(tf.global_variables_initializer())
+            self.embedder.load_weights(self.sess)
     @staticmethod
     def loss_func(y_pred, y):
         # y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)

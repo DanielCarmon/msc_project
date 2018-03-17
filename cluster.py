@@ -111,7 +111,7 @@ class GDKMeansClusterer1(BaseClusterer):
 class GDKMeansClusterer2(BaseClusterer):
     ''' optimize over cluster centroids '''
 
-    def __init__(self, data_params, k, learn_rate, n_iters=100, planted_values = False):
+    def __init__(self, data_params, k, learn_rate, n_iters=50, planted_values = False):
         self.learn_rate = learn_rate
         self.curr_step = 0
         self.n_iters = n_iters
@@ -288,7 +288,7 @@ class EMClusterer(BaseClusterer):
         self.init_params()  # TF constants for inner-optimization
 
     def set_data(self, x):
-        x = tf.Print(x,[x],'input x:')
+        #x = tf.Print(x,[x],'input x:')
         self.x = x
 
     def init_params(self):

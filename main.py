@@ -12,8 +12,14 @@ import pdb
 import sys
 import traceback
 import inspect
+import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
+
+def save(obj,fname):
+    pickle_out = open(fname+'.pickle','wb+')
+    pickle.dump(obj,pickle_out)
+    pickle_out.close()
 
 def my_parser(argv):
     ret = {}
@@ -246,46 +252,53 @@ def run2():
 
 def run3():
     # check gradient flow through clusterers.
+    # dataset =  ambiguous gaussians
     global embedder, clusterer, tf_clustering, data_params, k
 
-    k = 3
-    n, d = k * 100, 3
-    data_params = n, d
-    r = 4  # distance between gaussians
-    rashit = np.ones(d)
-    x1 = np.random.normal(0 * rashit, 1, (n / k, d))
-    x2 = np.random.normal(r * rashit, 1, (n / k, d))
-    x3 = np.random.normal((2 * r) * rashit, 1, (n / k, d))
-    x = np.vstack((x1, x2))
-    x = np.vstack((x, x3))
-    y1 = np.array([1.] * (n / 3) + [0.] * (2 * n / 3))[np.newaxis, :]
-    y2 = np.array([0.] * (n / 3) + [1.] * (n / 3) + [0.] * (n / 3))[np.newaxis, :]
-    y3 = np.array([0.] * (2 * n / 3) + [1.] * (n / 3))[np.newaxis, :]
-    y = np.zeros((n, n))
-    y += np.matmul(y1.T, y1)
-    y += np.matmul(y2.T, y2)
-    y += np.matmul(y3.T, y3)
-
+    k = 2
+    n, d = 200,2
+    data_params = 4*n, d
+    def gen_xy():
+        shift,r = np.random.normal([0,0]),np.random.normal([5])
+        flip = (-1)**np.random.randint(2)
+        x1 = np.random.normal([0,0],size=[n,2])
+        x2 = np.random.normal([0,1],size=[n,2])
+        x3 = np.random.normal([1,0],size=[n,2])
+        x4 = np.random.normal([1,1],size=[n,2])
+        x =  np.vstack((np.vstack((x1,x2)),np.vstack((x3,x4))))
+        x = flip*r*(x+shift)
+        y1 = np.array([1]*2*n+[0]*2*n)
+        y2 = np.array([0]*2*n+[1]*2*n)
+        y = np.vstack((y1,y2)) # [4n,2]
+        y = np.matmul(y.T,y) # [4n,4n]
+        return x,y
     embedder = ProjectionEmbedder(data_params)
 
-    d_embed = 1
-    clusterer = GDKMeansClusterer2((n, d_embed), k)
-    # clusterer = EMClusterer((n,d_embed),k)
+    embed_dim = 1
+    clusterer = EMClusterer([4*n,embed_dim],k,n_iters=10)
     model = Model(data_params, embedder, clusterer)
 
     param_history = []
     loss_history = []
+    nmi_history = []
     step = model.train_step
-    feed_dict = {model.x: x, model.y: y}
     sess.run(tf.global_variables_initializer())
-    n_steps = 150
+    n_steps = 15000
     for i in range(n_steps):
         print 'at train step', i
-        _, membership_log, loss = sess.run([step, clusterer.history_list, model.loss], feed_dict=feed_dict)
+        x,y = gen_xy()
+        feed_dict = {model.x: x, model.y: y}
+        _, membership_log, loss, diff_history = sess.run([step, clusterer.history_list, model.loss,clusterer.diff_history], feed_dict=feed_dict)
+        #print 'diff history:',diff_history
         loss_history.append(loss)
         param_history.append(sess.run(embedder.params))
-    last_membership = membership_log[-1]
-    indices = np.argmax(last_membership, 1)
+        last_membership = membership_log[-1]
+        indices = np.argmax(last_membership, 1)
+        nmi_score = nmi(indices, np.argmax(y, 1))
+        nmi_history.append(nmi_score)
+    history = [loss_history,nmi_history]
+    save(history,'gaussians_score')
+    """ # plot 
     plt.plot(loss_history)
     plt.title('loss')
     title = "Clustered Data"
@@ -294,7 +307,7 @@ def run3():
     scatter_3d(np.reshape(param_history, (n_steps, 3)), title=title)
     # scatter_3d()
     print 'last projection:', param_history[-1]
-
+    """
 def run4(arg_dict):
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 299
@@ -395,6 +408,7 @@ def run4(arg_dict):
             print 'at train step', i
             if i%i_test==0: # case where i==0 is baseline
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis.npy',np.array(nmi_score_history))
+                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses.npy',np.array(loss_history))
                 test_score_em,test_score_km = test()
                 test_scores_em.append(test_score_em)
                 test_scores_km.append(test_score_km)
@@ -413,7 +427,7 @@ def run4(arg_dict):
                 before5 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
                 '''
                 for i in range(1):
-                    _,param_dict,activations_dict,clustering_history,clustering_diffs = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history], feed_dict=feed_dict)
+                    _,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
                     #pdb.set_trace()
                     old_params = param_dict
                     old_activations = activations_dict
@@ -434,6 +448,7 @@ def run4(arg_dict):
             #print 'before5:',before5
             print 'after: ',nmi_score
             nmi_score_history.append(nmi_score)
+            loss_history.append(loss)
             print "clustring diffs:",clustering_diffs
             if debug: 
                 pdb.set_trace()
@@ -545,6 +560,8 @@ if __name__ == "__main__":
     run = argv[1]
     if len(argv)>2:
         arg_dict = my_parser(argv)
+    if run=='3':
+        run3()
     if run=='4':
         run4(arg_dict)
     if run=='5':

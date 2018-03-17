@@ -405,8 +405,8 @@ def get_bird_test_data(k,n,d):
 loaded_train_data = None # global. data on RAM
 def get_bird_train_data2(data_dir,k,n):
     global loaded_train_data
-    #train_classes = range(1,101)
-    train_classes = range(1,1+k) # for small tests
+    train_classes = range(1,101)
+    #train_classes = range(1,1+k) # for small tests
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
     #print 'classes:',classes
