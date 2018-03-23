@@ -340,11 +340,14 @@ def run4(arg_dict):
         tmp_offset = arg_dict['offset']
     else:
         tmp_offset = 0
-    test_classes = range(101+tmp_offset,101+tmp_offset+n_test_classes)
+    #test_classes = range(101+tmp_offset,101+tmp_offset+n_test_classes)
+    test_classes = range(1,1+n_test_classes) # @debug. Checking train loss for all first 100 classes
     test_data = load_specific_data(data_dir,test_classes)
     test_xs,test_ys,test_ys_membership = test_data
     n_test = test_xs.shape[0]
     with tf.device('/device:GPU:1'):
+        print "testing with sklearn's Kmeans++"
+        '''
         test_data_ph_em = tf.placeholder(tf.float32,[n_test,embed_dim])
         test_clusterer_em = EMClusterer([n_test,embed_dim],len(test_classes))
         test_clusterer_em.set_data(test_data_ph_em) 
@@ -355,7 +358,7 @@ def run4(arg_dict):
         test_clusterer_km = KMeansClusterer([n_test,embed_dim],len(test_classes))
         test_clusterer_km.set_data(test_data_ph_km)
         test_clustering_km = test_clusterer_km.infer_clustering()
-
+        '''
 
     def test(): 
         print 'begin test'
@@ -372,29 +375,42 @@ def run4(arg_dict):
             embedded_xs_batch = get_embedding(xs_batch)
             np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
             i+=1
-        #np_embeddings_normalized = l2_normalize(np_embeddings)
+        np_embeddings_normalized = l2_normalize(np_embeddings)
         # 2) cluster
-        print 'testing with em clusterer:'
-        feed_dict = {test_data_ph_em:np_embeddings}
-        clustering_em,diff_history_em = sess.run([test_clustering_em,test_clusterer_em.diff_history],feed_dict=feed_dict)
-        
-        print 'testing with km clusterer:'
-        feed_dict = {test_data_ph_km:np_embeddings}
-        clustering_km,diff_history_km = sess.run([test_clustering_km,test_clusterer_km.diff_history],feed_dict=feed_dict)
+        use_sklearn = True
+        if not use_sklearn:
+            print 'testing with em clusterer:'
+            feed_dict = {test_data_ph_em:np_embeddings}
+            clustering_em,diff_history_em = sess.run([test_clustering_em,test_clusterer_em.diff_history],feed_dict=feed_dict) 
+            print 'testing with km clusterer:'
+            feed_dict = {test_data_ph_km:np_embeddings}
+            clustering_km,diff_history_km = sess.run([test_clustering_km,test_clusterer_km.diff_history],feed_dict=feed_dict)
 
-        # 3) calculate score
-        last_em, last_km = clustering_em[-1], clustering_km[-1]
-        test_nmi_em = nmi(np.argmax(last_em, 1), np.argmax(test_ys_membership, 1))
-        test_nmi_km = nmi(np.argmax(last_km, 1), np.argmax(test_ys_membership, 1))
-        print test_nmi_em,test_nmi_km
-        return test_nmi_em,test_nmi_km
-    
+            # 3) calculate score
+            last_em, last_km = clustering_em[-1], clustering_km[-1]
+            test_nmi_em = nmi(np.argmax(last_em, 1), np.argmax(test_ys_membership, 1))
+            test_nmi_km = nmi(np.argmax(last_km, 1), np.argmax(test_ys_membership, 1))
+            print test_nmi_em,test_nmi_km
+            results = [test_nmi_em,test_nmi_km]
+        else: # use sklearn
+            from sklearn import cluster
+            KMeans = cluster.KMeans
+            km = KMeans(n_clusters=n_test_classes).fit(np_embeddings)
+            #km_normalized = KMeans(n_clusters=n_test_classes).fit(np_embeddings_normalized)
+            labels = km.labels_
+            labels_normalized = km_normalized.labels_
+            nmi_score = nmi(labels, np.argmax(ys_membership, 1))
+            #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
+            #scores = [nmi_score,nmi_score_normalized]
+            results = nmi_score
+        return results
     i_test = 5 
     hyparams = 60000,data_dir,k,n_,i_test
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
-        test_scores_em = [] 
-        test_scores_km = []
+        #test_scores_em = [] 
+        #test_scores_km = []
+        test_scores = []
         n_steps,data_dir,k,n_,i_test = hyparams
         param_history = []
         loss_history = []
@@ -413,14 +429,15 @@ def run4(arg_dict):
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis{}.npy'.format(name),np.array(nmi_score_history))
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses{}.npy'.format(name),np.array(loss_history))
                 #test_score_em,test_score_km = test()
-                test_score_em,test_score_km = [0,0] # @debug. Checking optimization now
-                test_scores_em.append(test_score_em)
-                test_scores_km.append(test_score_km)
-                print 'test results thus far with em:',test_scores_em
-                print 'test results thus far with km:',test_scores_km
+                #test_score_em,test_score_km = [0,0] # @debug. Checking optimization now
+                #test_scores_em.append(test_score_em)
+                #test_scores_km.append(test_score_km)
+                #print 'test results thus far with em:',test_scores_em
+                #print 'test results thus far with km:',test_scores_km
                 #cp_file_name = ''
-                #pdb.set_trace()
                 #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
+                cp_file_name = 'test_scores{}.npy'.format(name)
+                np.save(cp_file_name,[test_scores,argv]) 
             if (i+1)%i_update_seen_classes == 0:
                 n_seen_classes+=10
             try:

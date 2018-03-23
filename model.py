@@ -60,10 +60,10 @@ class Model:
             self.sess.run(tf.global_variables_initializer())
             self.embedder.load_weights(self.sess)
     @staticmethod
-    def loss_func(y_pred, y, tg):
+    def loss_func(y_pred, y, use_tg):
         # y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)
         compare = y_pred[-1] # no trajectory gradient
-        if tg: # trajectory gradient
+        if use_tg: # trajectory gradient
             compare = y_pred
         tensor_shape = tf.shape(compare)
         normalize = tf.reduce_prod(tensor_shape) # num of entries
