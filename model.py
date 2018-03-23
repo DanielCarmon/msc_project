@@ -16,7 +16,7 @@ def nan_alarm(x):
 class Model:
     optimizer_class = tf.train.AdamOptimizer
     #optimizer_class = tf.train.GradientDescentOptimizer
-    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True):
+    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True):
         self.sess = sess
         self.embedder = embedder
         self.clusterer = clusterer
@@ -38,7 +38,7 @@ class Model:
         self.clusterer.set_data(self.x_embed)
         self.clustering = self.clusterer.infer_clustering()
 
-        self.loss = self.loss_func(self.clustering, self.y)
+        self.loss = self.loss_func(self.clustering, self.y, use_tg)
         # self.loss = self.stam(self.x_embed,self.y)
         self.grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.grads = filter((lambda x: x!=None),self.grads) # remove None gradients from tf's batch norm params.
@@ -60,10 +60,11 @@ class Model:
             self.sess.run(tf.global_variables_initializer())
             self.embedder.load_weights(self.sess)
     @staticmethod
-    def loss_func(y_pred, y):
+    def loss_func(y_pred, y, tg):
         # y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)
-        compare = y_pred[-1]
-        #compare = y_pred
+        compare = y_pred[-1] # no trajectory gradient
+        if tg: # trajectory gradient
+            compare = y_pred
         tensor_shape = tf.shape(compare)
         normalize = tf.reduce_prod(tensor_shape) # num of entries
         # normalize = 1.

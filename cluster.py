@@ -293,7 +293,7 @@ class EMClusterer(BaseClusterer):
 
     def init_params(self):
         self.theta = tf.random_normal([self.k, self.d], seed=2017, name='theta_0')
-        # self.theta = tf.constant(np.float32([[0.,1],[1.,0.]]))
+        #self.theta = tf.get_variable('theta', shape=(self.k, self.d), initializer=tf.contrib.layers.xavier_initializer())
         self.history_list = []
         self.diff_history = []
     def update_params(self):

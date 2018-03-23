@@ -331,7 +331,8 @@ def run4(arg_dict):
     with tf.device('/device:GPU:0'):
         embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
         clusterer = clst_module([n, embed_dim], k, hp)
-        model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False)
+        use_tg = bool(arg_dict['use_tg']) # trajectory gradient
+        model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
     # prepare test data
     print 'Building test pipeline'
     n_test_classes = arg_dict['n_test_classes']
@@ -401,15 +402,18 @@ def run4(arg_dict):
         step = model.train_step
 
         debug = False
-        #xs, ys = get_bird_train_data2(data_dir,k, n_) # for debug
+        i_update_seen_classes = 10**4 # curriculum learning
+        n_seen_classes = 10
         for i in range(n_steps): 
-            xs, ys = get_bird_train_data2(data_dir,k, n_) # gets n_ examples from k classes
+            xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
             if i%i_test==0: # case where i==0 is baseline
-                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis.npy',np.array(nmi_score_history))
-                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses.npy',np.array(loss_history))
-                test_score_em,test_score_km = test()
+                name = arg_dict['name']
+                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis{}.npy'.format(name),np.array(nmi_score_history))
+                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses{}.npy'.format(name),np.array(loss_history))
+                #test_score_em,test_score_km = test()
+                test_score_em,test_score_km = [0,0] # @debug. Checking optimization now
                 test_scores_em.append(test_score_em)
                 test_scores_km.append(test_score_km)
                 print 'test results thus far with em:',test_scores_em
@@ -417,7 +421,8 @@ def run4(arg_dict):
                 #cp_file_name = ''
                 #pdb.set_trace()
                 #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
-
+            if (i+1)%i_update_seen_classes == 0:
+                n_seen_classes+=10
             try:
                 '''
                 before1 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
