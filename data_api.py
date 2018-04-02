@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -285,19 +286,23 @@ def get_relevant_fnames(file_names, class_name):
         if fname.split('/')[0]==class_name:
             ret.append(fname)
     return ret
-
+def crop_center(img,cropx,cropy):
+    y,x,_ = img.shape
+    startx = x//2-(cropx//2)  
+    starty = y//2-(cropy//2)    
+    return img[starty:starty+cropy,startx:startx+cropx,:]
 def preprocess_data(data_dir, save_dir,d,num_classes=200):
     # needs to be called only once.
     # data_dir: where data is currently located
     # save_dir: where preprocessed data should be saved
     # d: size to reshape images to. [d,d,3]
     # num_classes = total number of classes in dataset
-
     import Image
     xs = np.zeros((0, d, d, 3))
     ys_membership = np.zeros((0, num_classes))
     # fill xs:
     print 'filling xs'
+    crop = True
     class_names = open(data_dir + '/classes.txt').readlines()
     file_names = open(data_dir + '/images.txt').readlines()
     curr_class = 0
@@ -313,10 +318,13 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
                 fname_ = data_dir + '/images/' + fname
                 im = Image.open(fname_)
                 img_arr = np.array(im)
-                img_arr = imresize(img_arr, (d, d))  # crop/resize.
-                if img_arr.shape!=(d,d,3):
+                if len(img_arr.shape)!=3:
                     print 'bw image!'
                     continue
+                if crop: # cropping as described at Zemel et al. Added on 28.3.18
+                    img_arr = imresize(img_arr, (256, 256))
+                    img_arr = crop_center(img_arr,227,227)
+                img_arr = imresize(img_arr, (d, d))  # resize.
                 xs = np.vstack((xs, img_arr[np.newaxis, :, :, :]))
         #membership_vec = np.zeros((1, num_classes))
         #membership_vec[0, curr_class] = 1
@@ -326,8 +334,11 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
         xs_mean = np.mean(xs,0)
         xs_var = np.mean((xs-xs_mean)**2, 0)
         xs_normalized = (xs-xs_mean)/np.sqrt(xs_var)
-        # save xs,ys
-        save_dir_ = save_dir + '/class'+str(curr_class)+'.npy'
+        # save xs
+        version_name = '' 
+        if crop:
+            version_name = '_cropped'
+        save_dir_ = save_dir + '/class'+str(curr_class)+'{}.npy'.format(version_name)
         print 'saving at',save_dir_
         np.save(save_dir_,xs_normalized)
     return 0
@@ -403,7 +414,7 @@ def get_bird_test_data(k,n,d):
     return np.array(xs), ys
 
 loaded_train_data = None # global. data on RAM
-def get_bird_train_data2(data_dir,k,n,n_seen_classes=100):
+def get_bird_train_data2(data_dir,k,n,n_seen_classes=100,use_crop = False):
     global loaded_train_data
     train_classes = range(1,1+n_seen_classes) 
     perm = np.random.permutation(train_classes)
@@ -411,7 +422,10 @@ def get_bird_train_data2(data_dir,k,n,n_seen_classes=100):
     #print 'classes:',classes
     if loaded_train_data is None:
         print 'loading train data'
-        loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
+        version= ''
+        if use_crop: version = '_cropped' # decide which data augmentation to use. crop+resize or just resize
+        # loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
+        loaded_train_data = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in range(1,101)] # curriculum
     loaded_data = [loaded_train_data[c-1] for c in classes]
     loaded_data = [np.random.permutation(class_data)[:n] for class_data in loaded_data] # take random subsample 
     class_szs = [class_data.shape[0] for class_data in loaded_data]
@@ -425,29 +439,40 @@ def get_bird_train_data2(data_dir,k,n,n_seen_classes=100):
     # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
     return xs,ys
 
-def augment(data_dir):
+def augment(data_dir,version=''):
     """ this should only be called once """
     for i in range(1,201):
-        class_data_path = data_dir+"/class{}.npy".format(str(i))
+        print 'augmenting',i
+        class_data_path = data_dir+"/class{}{}.npy".format(str(i),version)
         class_data = np.load(class_data_path)
-        # ad-hoc fix:
-        n_class_data = class_data.shape[0]
-        mid = n_class_data/2
-        class_data = class_data[:mid]
-        print i,class_data_path
         class_data_flipped = np.flip(class_data,2) # horizontal flipping
         class_data = np.vstack((class_data,class_data_flipped))
         np.save(class_data_path,class_data)
-#augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds')
+#augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds',version='_cropped')
 
-def load_specific_data(data_dir,inds,augment=False):
+def get_data_total_shape(inds,data_dir):
+    lengths = pickle.load(data_dir+'/lengths.pickle')
+    ret = 0
+    for i in inds:
+        ret+=lengths[i]
+    return ret,299,299,3 # @ad-hoc. suits inception network only
+
+def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     global loaded_test_data
     def echo(x):
         print 'loading:',x
         return True
-    
-    data_paths = [data_dir+"/class"+str(i)+".npy" for i in inds]
-    loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
+    version = ''
+    if use_crop: version = '_cropped'
+    data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
+    shape = get_data_total_shape(inds,data_dir=data_dir)
+    pdb.set_trace()
+    try:
+        loaded_data = np.memmap('loaded_data{}'.format(version),'r+',shape=shape)
+    except:
+        print 'loading data from disk...'
+        loaded_data = np.memmap('loaded_data{}'.format(version),'w+',shape=shape)
+        loaded_data[...] = [np.load(path) if echo(path) else None for path in data_paths]
     if not augment:
         loaded_data = [class_data[:class_data.shape[0]/2] for class_data in loaded_data] # one half is augmented data
     class_szs = [class_data.shape[0] for class_data in loaded_data]

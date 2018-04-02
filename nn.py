@@ -6,34 +6,32 @@ class NN():
     pass
 
 class MLP(NN):
-    lr = .1
-    optimizer = tf.train.AdamOptimizer(lr)
-
-    def __init__(self, n_hidden, x=None):
-        if x == None:
-            self.x = tf.placeholder(tf.float32, [None, n_hidden[0]])  # rows are data points
-        else:
-            self.x = x
-        last = self.x
-        self.layers = []
-        for i in range(1, len(n_hidden)):
-            self.last_built = i
-            mat = self.init_weights([n_hidden[i - 1], n_hidden[i]])
-            activation_f = tf.nn.sigmoid
-            activation = activation_f(tf.matmul(last, mat))
-            last = activation
-            self.layers.append(last)
-        self.output = last
-        self.y = tf.placeholder(tf.float32, [None, n_hidden[-1]])
-        self.loss = tf.norm(self.output - self.y) ** 2  # squared distance loss
-        self.loss = tf.Print(self.loss, [self.loss], "loss:")
-        self.train_step = self.optimizer.minimize(self.loss)
-
-    def init_weights(self, shape):
-        const_init = tf.random_normal(shape)
-        i = self.last_built
-        var_init = tf.Variable(const_init, name="weights{}".format(str(i)))
-        return var_init
+    def __init__(self,layer_widths,x=None,name=''):
+        # args:
+        # n_hidden: list of layer widths
+        # x: TF tensor
+        self.name = name
+        self.out = x # this will be changed at build. self.out <- next_layer(self.out)
+        self.layer_widths = layer_widths
+        self.activations = [x]
+        self.params = []
+        self.build()
+    def build(self):
+        activation = tf.nn.relu
+        depth = len(self.layer_widths)
+        for i in range(depth-1):
+            #initializer = tf.ones_initializer()
+            initializer = tf.contrib.layers.xavier_initializer()
+            weight_matrix = tf.get_variable("{}_DeepSetWeightMatrix{}".format(self.name,str(i)), [self.layer_widths[i+1],self.layer_widths[i]],initializer=initializer)
+            #weight_matrix = tf.Variable(np.eye(self.layer_widths[0])) #@debug
+            #weight_matrix = tf.constant(np.eye(self.layer_widths[0])) #@debug
+            weight_matrix = tf.cast(weight_matrix,tf.float32)
+            self.activations.append(self.out)
+            self.params.append(weight_matrix)
+            self.out = tf.matmul(self.out,weight_matrix)
+            #self.out = activation(self.out)
+    def output(self):
+        return self.out
 
 class vgg16:
     def __init__(self,retrain=False):

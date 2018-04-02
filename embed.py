@@ -55,6 +55,37 @@ class TestEmbedder2(BaseEmbedder):
         self.params.append(mat)
         return tf.matmul(x, mat)
 
+class DeepSetEmbedder1(BaseEmbedder):
+    """embedding flat vectors"""
+    hidden_layer_width = [3]
+
+    def __init__(self, data_params):
+        self.n, self.d = tuple(data_params)
+        self.params = []
+    '''
+    def embed(self, x):
+        layer_widths = [self.d,self.d]
+        self.mlp = MLP(layer_widths,x)
+        out = self.mlp.output()
+        #return x
+        return out
+    '''
+    def embed(self,x):
+        layer_widths = [self.d,self.d] # or something else
+        self.phi = MLP(layer_widths,x,"phi")
+        phi_matrix = self.phi.output() # [n,d'] matrix of phi1(x_i)s.
+        multiplex_matrix = 1-tf.eye(self.n) # [n,n]. 1-I
+        phi_sums_matrix = tf.matmul(multiplex_matrix,phi_matrix) # [n,d']
+        layer_widths = [self.d,self.d] # or something else
+        self.rho = MLP(layer_widths,phi_sums_matrix,"rho")
+        context_matrix = self.rho.output()
+        layer_widths = [2*self.d,2*self.d] # or something else
+        concat_matrix = tf.concat([x,context_matrix],1)
+        self.psi = MLP(layer_widths,concat_matrix,"psi")
+        out = self.psi.output()
+        return out
+    ''
+
 
 class ImgEmbedder(BaseEmbedder):
     """
@@ -94,25 +125,6 @@ class ImgEmbedder(BaseEmbedder):
 
     """
 
-
-class DeepSetEmbedder1(BaseEmbedder):
-    """embedding flat vectors"""
-    hidden_layer_width = [3]
-
-    def __init__(self, data_params, embed_dim=3):
-        self.img_dim, self.c = tuple(data_params)
-        self.embed_dim = embed_dim
-        self.init_network()
-
-    def init_network(self):
-        self.hidden_layer_width = [self.img_dim] + self.hidden_layer_width + [self.embed_dim]
-        self.rho1 = MLP([1])
-        self.rho2 = MLP([1])
-        self.phi1 = MLP([1])
-        self.phi2 = MLP([1])
-
-    def embed(self, x):
-        return NotImplemented
 
 
 class ProjectionEmbedder(BaseEmbedder):

@@ -333,6 +333,8 @@ def run4(arg_dict):
         clusterer = clst_module([n, embed_dim], k, hp)
         use_tg = bool(arg_dict['use_tg']) # trajectory gradient
         model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
+    
+    use_crop,use_curric = arg_dict['use_crop'], arg_dict['use_curric']
     # prepare test data
     print 'Building test pipeline'
     n_test_classes = arg_dict['n_test_classes']
@@ -340,14 +342,15 @@ def run4(arg_dict):
         tmp_offset = arg_dict['offset']
     else:
         tmp_offset = 0
-    #test_classes = range(101+tmp_offset,101+tmp_offset+n_test_classes)
-    test_classes = range(1,1+n_test_classes) # @debug. Checking train loss for all first 100 classes
-    test_data = load_specific_data(data_dir,test_classes)
+    test_classes = range(101+tmp_offset,101+tmp_offset+n_test_classes)
+    #test_classes = range(1,1+n_test_classes) # @debug. Checking train loss for all first 100 classes
+    test_data = load_specific_data(data_dir,test_classes,use_crop)
     test_xs,test_ys,test_ys_membership = test_data
     n_test = test_xs.shape[0]
+
+    print "validation/tests will be done using sklearn's Kmeans++"
+    '''
     with tf.device('/device:GPU:1'):
-        print "testing with sklearn's Kmeans++"
-        '''
         test_data_ph_em = tf.placeholder(tf.float32,[n_test,embed_dim])
         test_clusterer_em = EMClusterer([n_test,embed_dim],len(test_classes))
         test_clusterer_em.set_data(test_data_ph_em) 
@@ -358,7 +361,7 @@ def run4(arg_dict):
         test_clusterer_km = KMeansClusterer([n_test,embed_dim],len(test_classes))
         test_clusterer_km.set_data(test_data_ph_km)
         test_clustering_km = test_clusterer_km.infer_clustering()
-        '''
+    '''
 
     def test(): 
         print 'begin test'
@@ -398,30 +401,32 @@ def run4(arg_dict):
             km = KMeans(n_clusters=n_test_classes).fit(np_embeddings)
             #km_normalized = KMeans(n_clusters=n_test_classes).fit(np_embeddings_normalized)
             labels = km.labels_
-            labels_normalized = km_normalized.labels_
-            nmi_score = nmi(labels, np.argmax(ys_membership, 1))
+            #labels_normalized = km_normalized.labels_
+            nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
             #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
             #scores = [nmi_score,nmi_score_normalized]
             results = nmi_score
         return results
-    i_test = 5 
-    hyparams = 60000,data_dir,k,n_,i_test
+
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         #test_scores_em = [] 
         #test_scores_km = []
         test_scores = []
-        n_steps,data_dir,k,n_,i_test = hyparams
+        n_steps,data_dir,k,n_,i_test, use_crop, use_curric = hyparams
         param_history = []
         loss_history = []
         nmi_score_history = []
         step = model.train_step
 
         debug = False
-        i_update_seen_classes = 10**4 # curriculum learning
-        n_seen_classes = 10
+        i_update_seen_classes = 5*10**30 # curriculum learning
+        n_seen_classes = 100 # no curric!
+        if use_curric:
+            i_update_seen_classes = 5*10**3 # curriculum learning
+            n_seen_classes = 10
         for i in range(n_steps): 
-            xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes) # gets n_ examples from k classes
+            xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes, use_crop) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
             if i%i_test==0: # case where i==0 is baseline
@@ -436,10 +441,16 @@ def run4(arg_dict):
                 #print 'test results thus far with km:',test_scores_km
                 #cp_file_name = ''
                 #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
+                test_scores.append(test())
+                print '*'*50
+                print 'test scores:',test_scores
+                print '*'*50
+
                 cp_file_name = 'test_scores{}.npy'.format(name)
                 np.save(cp_file_name,[test_scores,argv]) 
             if (i+1)%i_update_seen_classes == 0:
                 n_seen_classes+=10
+                n_seen_classes = min(100,n_seen_classes)
             try:
                 '''
                 before1 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
@@ -479,6 +490,8 @@ def run4(arg_dict):
 
     print 'begin training'
     # end-to-end training:
+    i_test = 100 
+    hyparams = [10**6,data_dir,k,n_,i_test, use_crop, use_curric]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['train_params']!="last":
@@ -487,9 +500,13 @@ def run4(arg_dict):
         except:
             print get_tb()
             pdb.set_trace()
-        pdb.set_trace()
+    else:
+        #hyperparams[0] = 10**4
+        hyperparams[0] = 3
+        train_nmis,test_scores_e2e = train(model,hyparams)
+    print 'starting last-layer training'
     # last-layer training (use this in case of overfitting):
-
+    hyperparams[0]=10**6
     #filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
     filter_cond = lambda x: ("aux_logits/FC/" in str(x))
     last_layer_params = filter(filter_cond,embedder.params)
