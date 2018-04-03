@@ -431,12 +431,7 @@ def get_bird_train_data2(data_dir,k,n,n_seen_classes=100,use_crop = False):
     class_szs = [class_data.shape[0] for class_data in loaded_data]
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
-    #membership_islands = [np.ones((sz,1)) for sz in class_szs]
-    #ys_membership = block_diag(*membership_islands) # membership matrix
     xs = np.concatenate(loaded_data,0)
-    # center crop:
-    # xs = xs[:,35:265,35:235,:] # crop
-    # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
     return xs,ys
 
 def augment(data_dir,version=''):
@@ -450,12 +445,14 @@ def augment(data_dir,version=''):
         np.save(class_data_path,class_data)
 #augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds',version='_cropped')
 
-def get_data_total_shape(inds,data_dir):
-    lengths = pickle.load(data_dir+'/lengths.pickle')
-    ret = 0
+def get_len_list(inds,data_dir,augment):
+    lengths = pickle.load(open(data_dir+'/lengths.pickle'))
+    ret = []
     for i in inds:
-        ret+=lengths[i]
-    return ret,299,299,3 # @ad-hoc. suits inception network only
+        to_append = lengths[i-1]
+        if augment: to_append = to_append/2 # don't count flipped images
+        ret.append(to_append)
+    return ret
 
 def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     global loaded_test_data
@@ -465,25 +462,23 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     version = ''
     if use_crop: version = '_cropped'
     data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
-    shape = get_data_total_shape(inds,data_dir=data_dir)
-    pdb.set_trace()
+    class_szs = get_len_list(inds,data_dir,augment)
+    shape = sum(class_szs),299,299,3
+    xs_name = 'xs{}'.format(version)
+    if augment: xs_name+='_augmented'
     try:
-        loaded_data = np.memmap('loaded_data{}'.format(version),'r+',shape=shape)
+        xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
     except:
-        print 'loading data from disk...'
-        loaded_data = np.memmap('loaded_data{}'.format(version),'w+',shape=shape)
-        loaded_data[...] = [np.load(path) if echo(path) else None for path in data_paths]
-    if not augment:
-        loaded_data = [class_data[:class_data.shape[0]/2] for class_data in loaded_data] # one half is augmented data
-    class_szs = [class_data.shape[0] for class_data in loaded_data]
+        print 'creating xs variable'
+        xs = np.memmap(xs_name,dtype='float32',mode='w+',shape=shape)
+        loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
+        loaded_data = [c[:len(c)/2] for c in loaded_data]# remove augmentation
+        xs[...] = np.concatenate(loaded_data)
+    
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
-    xs = np.concatenate(loaded_data,0)
-    # center crop:
-    # xs = xs[:,35:265,35:235,:] # crop
-    # xs = np.array([imresize(mat,(299,299)) for mat in xs]) # resize
     return xs,ys,ys_membership
 
 def l2_normalize(arr):

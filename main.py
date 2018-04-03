@@ -410,8 +410,6 @@ def run4(arg_dict):
 
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
-        #test_scores_em = [] 
-        #test_scores_km = []
         test_scores = []
         n_steps,data_dir,k,n_,i_test, use_crop, use_curric = hyparams
         param_history = []
@@ -433,14 +431,6 @@ def run4(arg_dict):
                 name = arg_dict['name']
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis{}.npy'.format(name),np.array(nmi_score_history))
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses{}.npy'.format(name),np.array(loss_history))
-                #test_score_em,test_score_km = test()
-                #test_score_em,test_score_km = [0,0] # @debug. Checking optimization now
-                #test_scores_em.append(test_score_em)
-                #test_scores_km.append(test_score_km)
-                #print 'test results thus far with em:',test_scores_em
-                #print 'test results thus far with km:',test_scores_km
-                #cp_file_name = ''
-                #np.save(cp_file_name,[test_scores_em,test_scores_km,argv])
                 test_scores.append(test())
                 print '*'*50
                 print 'test scores:',test_scores
@@ -452,13 +442,6 @@ def run4(arg_dict):
                 n_seen_classes+=10
                 n_seen_classes = min(100,n_seen_classes)
             try:
-                '''
-                before1 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
-                before2 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
-                before3 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
-                before4 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
-                before5 = nmi(np.argmax(sess.run(model.clusterer.history_list, feed_dict=feed_dict)[-1], 1), np.argmax(ys, 1))
-                '''
                 for i in range(1):
                     _,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
                     #pdb.set_trace()
@@ -486,7 +469,7 @@ def run4(arg_dict):
             if debug: 
                 pdb.set_trace()
         print 'train_nmis:',nmi_score_history
-        return nmi_score_history,[test_scores_em,test_scores_km]
+        return nmi_score_history,test_scores
 
     print 'begin training'
     # end-to-end training:
@@ -501,12 +484,12 @@ def run4(arg_dict):
             print get_tb()
             pdb.set_trace()
     else:
-        #hyperparams[0] = 10**4
-        hyperparams[0] = 3
+        #hyparams[0] = 10**4
+        hyparams[0] = 3
         train_nmis,test_scores_e2e = train(model,hyparams)
     print 'starting last-layer training'
     # last-layer training (use this in case of overfitting):
-    hyperparams[0]=10**6
+    hyparams[0]=10**6
     #filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
     filter_cond = lambda x: ("aux_logits/FC/" in str(x))
     last_layer_params = filter(filter_cond,embedder.params)
