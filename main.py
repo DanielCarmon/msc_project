@@ -484,8 +484,7 @@ def run4(arg_dict):
             print get_tb()
             pdb.set_trace()
     else:
-        #hyparams[0] = 10**4
-        hyparams[0] = 3
+        hyparams[0] = 10**4
         train_nmis,test_scores_e2e = train(model,hyparams)
     print 'starting last-layer training'
     # last-layer training (use this in case of overfitting):
