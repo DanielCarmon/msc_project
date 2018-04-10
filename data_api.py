@@ -464,7 +464,8 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
     class_szs = get_len_list(inds,data_dir,augment)
     shape = sum(class_szs),299,299,3
-    xs_name = 'xs{}'.format(version)
+    which_data = str(inds[0])+"_to_"+str(inds[-1])
+    xs_name = which_data+'xs{}'.format(version)
     if augment: xs_name+='_augmented'
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)

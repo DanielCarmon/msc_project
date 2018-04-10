@@ -63,7 +63,7 @@ def trim(vec, digits=3):
 # START
 # from pylab import *
 import matplotlib.pyplot as plt
-
+project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 rand = np.random.normal
 
 data_params = None
@@ -339,20 +339,15 @@ def run4(arg_dict):
     
     use_crop,use_curric = arg_dict['use_crop'], arg_dict['use_curric']
     # prepare test data
-    print 'Building test pipeline'
-    n_test_classes = arg_dict['n_test_classes']
-    if 'offset' in arg_dict.keys():
-        tmp_offset = arg_dict['offset']
-    else:
-        tmp_offset = 0
-    test_classes = range(101+tmp_offset,101+tmp_offset+n_test_classes)
-    #test_classes = range(1,1+n_test_classes) # @debug. Checking train loss for all first 100 classes
-    test_data = load_specific_data(data_dir,test_classes,use_crop)
-    test_xs,test_ys,test_ys_membership = test_data
-    n_test = test_xs.shape[0]
+    print 'Loading train data... '
+    first_100_data = load_specific_data(data_dir,range(1,101),use_crop)
+    print 'Loading test data... '
+    last_100_data = load_specific_data(data_dir,range(101,201),use_crop)
     KMeans = cluster.KMeans
-    def test(): 
+    def test(test_data): 
         print 'begin test'
+        test_xs,test_ys,test_ys_membership = test_data
+        n_test = test_xs.shape[0]
         # 1) embed batch by batch
         def get_embedding(xs_batch,startpoint,endpoint):
             feed_dict = {startpoint:xs_batch}
@@ -389,6 +384,7 @@ def run4(arg_dict):
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
+        train_scores = []
         n_steps,data_dir,k,n_,i_test, use_crop, use_curric = hyparams
         param_history = []
         loss_history = []
@@ -407,9 +403,12 @@ def run4(arg_dict):
             print 'at train step', i
             if i%i_test==0 and not arg_dict['deepset']: # case where i==0 is baseline
                 name = arg_dict['name']
-                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis{}.npy'.format(name),np.array(nmi_score_history))
-                np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses{}.npy'.format(name),np.array(loss_history))
-                test_scores.append(test())
+                np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_score_history))
+                np.save(project_dir+'train_losses{}.npy'.format(name),np.array(loss_history))
+                saver.save(sess,project_dir+"{}.ckpt".format(name))
+                #TODO: TEST ON A SEPERATE THREAD
+                test_scores.append(test(last_100_data)) # check over 100 last classes
+                train_scores.append(test(first_100_data)) # check over 100 first classes
                 print '*'*50
                 print 'test scores:',test_scores
                 print '*'*50
