@@ -8,6 +8,11 @@ import inception_model as inception
 from scipy.misc import imread, imresize
 import pdb
 
+def tf_print(x,msg=''):
+    x = tf.Print(x,[x],msg)
+    x = 1.*x
+    return x
+
 def my_batch_norm(batch_x):
     batch_mean = tf.reduce_mean(batch_x, 0)
     batch_var = tf.reduce_mean((batch_x-batch_mean)**2, 0)
@@ -18,14 +23,29 @@ class BaseEmbedder:
     def __init__(self):
         self.params = []
 
-    def embed(self, x):
-        pass
-
     def compose(self, other):
         """ return lambda x: self(other(x))"""
         ret = BaseEmbedder()
-        ret.embed = lambda x: self.embed(other.embed(x))
+        def new_embed(x):
+            inner_embed = other.embed(x)
+            other.out = inner_embed
+            self.deepset_pointer.params = self.params + other.params
+            return self.embed(inner_embed)
+        self.deepset_pointer = ret
+        ret.embed = new_embed
         ret.params = self.params + other.params
+        try:
+            ret.load_weights = other.load_weights
+            ret.embed_dim = other.embed_dim
+            ret.weight_file = other.weight_file
+            ret.sess = other.sess
+            ret.pretrained = other.pretrained
+            ret.built = other.built
+            ret.saver = other.saver
+            ret.params = other.params
+            ret.endpoints = other.endpoints
+        except:
+            pass
         return ret
 
 
@@ -59,8 +79,8 @@ class DeepSetEmbedder1(BaseEmbedder):
     """embedding flat vectors"""
     hidden_layer_width = [3]
 
-    def __init__(self, data_params):
-        self.n, self.d = tuple(data_params)
+    def __init__(self, input_dim):
+        self.d = input_dim
         self.params = []
     '''
     def embed(self, x):
@@ -71,18 +91,25 @@ class DeepSetEmbedder1(BaseEmbedder):
         return out
     '''
     def embed(self,x):
+        x = tf_print(x,msg='Embedding input')
         layer_widths = [self.d,self.d] # or something else
-        self.phi = MLP(layer_widths,x,"phi")
+        eps = 1e-10
+        init = tf.initializers.zeros()
+        self.phi = MLP(layer_widths,x,"phi",init)
         phi_matrix = self.phi.output() # [n,d'] matrix of phi1(x_i)s.
-        multiplex_matrix = 1-tf.eye(self.n) # [n,n]. 1-I
-        phi_sums_matrix = tf.matmul(multiplex_matrix,phi_matrix) # [n,d']
+        phi_matrix = tf_print(phi_matrix,msg='phi matrix')
+        phi_sum = tf.reduce_sum(phi_matrix,0) # [d]
+        phi_sums_matrix = phi_sum-phi_matrix # [n,d']
         layer_widths = [self.d,self.d] # or something else
-        self.rho = MLP(layer_widths,phi_sums_matrix,"rho")
+        self.rho = MLP(layer_widths,phi_sums_matrix,"rho",init)
         context_matrix = self.rho.output()
-        layer_widths = [2*self.d,2*self.d] # or something else
+        context_matrix = tf_print(context_matrix,msg='context matrix')
+        layer_widths = [2*self.d,self.d] # or something else
         concat_matrix = tf.concat([x,context_matrix],1)
-        self.psi = MLP(layer_widths,concat_matrix,"psi")
+        init = tf.initializers.identity()
+        self.psi = MLP(layer_widths,concat_matrix,"psi",init)
         out = self.psi.output()
+        out = tf_print(out,msg='Embedding output')
         return out
     ''
 

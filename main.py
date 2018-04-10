@@ -1,4 +1,5 @@
 import tensorflow as tf
+from sklearn import cluster
 import traceback
 import sys
 from data_api import *
@@ -328,11 +329,13 @@ def run4(arg_dict):
     #embed_dim = 128
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
-    with tf.device('/device:GPU:0'):
-        embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
-        clusterer = clst_module([n, embed_dim], k, hp)
-        use_tg = bool(arg_dict['use_tg']) # trajectory gradient
-        model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
+    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+    if arg_dict['deepset']:
+        embedder_pointwise = embedder
+        embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
+    clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'])
+    use_tg = bool(arg_dict['use_tg']) # trajectory gradient
+    model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
     
     use_crop,use_curric = arg_dict['use_crop'], arg_dict['use_curric']
     # prepare test data
@@ -347,65 +350,40 @@ def run4(arg_dict):
     test_data = load_specific_data(data_dir,test_classes,use_crop)
     test_xs,test_ys,test_ys_membership = test_data
     n_test = test_xs.shape[0]
-
-    print "validation/tests will be done using sklearn's Kmeans++"
-    '''
-    with tf.device('/device:GPU:1'):
-        test_data_ph_em = tf.placeholder(tf.float32,[n_test,embed_dim])
-        test_clusterer_em = EMClusterer([n_test,embed_dim],len(test_classes))
-        test_clusterer_em.set_data(test_data_ph_em) 
-        if clst_module == EMClusterer: test_clusterer_em.bandwidth = hp
-        test_clustering_em = test_clusterer_em.infer_clustering()
-        global test_clusterin_em 
-        test_data_ph_km = tf.placeholder(tf.float32,[n_test,embed_dim])
-        test_clusterer_km = KMeansClusterer([n_test,embed_dim],len(test_classes))
-        test_clusterer_km.set_data(test_data_ph_km)
-        test_clustering_km = test_clusterer_km.infer_clustering()
-    '''
-
+    KMeans = cluster.KMeans
     def test(): 
         print 'begin test'
         # 1) embed batch by batch
-        def get_embedding(xs_batch):
-            feed_dict = {model.x:xs_batch}
-            return sess.run(model.x_embed,feed_dict=feed_dict)
+        def get_embedding(xs_batch,startpoint,endpoint):
+            feed_dict = {startpoint:xs_batch}
+            return sess.run(endpoint,feed_dict=feed_dict)
         np_embeddings = np.zeros((0,embed_dim))
+        startpoint,endpoint = model.x,model.x_embed
+        if arg_dict['deepset']: # need to batchwise apply pointwise embedder
+            #startpoint = tf.placeholder(tf.float32,[None,299,299,3])
+            startpoint = model.x
+            #endpoint = embedder_pointwise.embed(startpoint)
+            endpoint = embedder_pointwise.out #?
+            pdb.set_trace()
+            print 'meow'
         i=0
         n_batch = 400
         while n_batch*i<n_test:
             xs_batch = test_xs[n_batch*i:n_batch*(i+1)]       
             print 'embedding batch ',i
-            embedded_xs_batch = get_embedding(xs_batch)
+            embedded_xs_batch = get_embedding(xs_batch,startpoint,endpoint)
             np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
             i+=1
         np_embeddings_normalized = l2_normalize(np_embeddings)
         # 2) cluster
-        use_sklearn = True
-        if not use_sklearn:
-            print 'testing with em clusterer:'
-            feed_dict = {test_data_ph_em:np_embeddings}
-            clustering_em,diff_history_em = sess.run([test_clustering_em,test_clusterer_em.diff_history],feed_dict=feed_dict) 
-            print 'testing with km clusterer:'
-            feed_dict = {test_data_ph_km:np_embeddings}
-            clustering_km,diff_history_km = sess.run([test_clustering_km,test_clusterer_km.diff_history],feed_dict=feed_dict)
-
-            # 3) calculate score
-            last_em, last_km = clustering_em[-1], clustering_km[-1]
-            test_nmi_em = nmi(np.argmax(last_em, 1), np.argmax(test_ys_membership, 1))
-            test_nmi_km = nmi(np.argmax(last_km, 1), np.argmax(test_ys_membership, 1))
-            print test_nmi_em,test_nmi_km
-            results = [test_nmi_em,test_nmi_km]
-        else: # use sklearn
-            from sklearn import cluster
-            KMeans = cluster.KMeans
-            km = KMeans(n_clusters=n_test_classes).fit(np_embeddings)
-            #km_normalized = KMeans(n_clusters=n_test_classes).fit(np_embeddings_normalized)
-            labels = km.labels_
-            #labels_normalized = km_normalized.labels_
-            nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
-            #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
-            #scores = [nmi_score,nmi_score_normalized]
-            results = nmi_score
+        km = KMeans(n_clusters=n_test_classes).fit(np_embeddings)
+        #km_normalized = KMeans(n_clusters=n_test_classes).fit(np_embeddings_normalized)
+        labels = km.labels_
+        #labels_normalized = km_normalized.labels_
+        nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
+        #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
+        #scores = [nmi_score,nmi_score_normalized]
+        results = nmi_score
         return results
 
     def train(model,hyparams):
@@ -427,7 +405,7 @@ def run4(arg_dict):
             xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes, use_crop) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
-            if i%i_test==0: # case where i==0 is baseline
+            if i%i_test==0 and not arg_dict['deepset']: # case where i==0 is baseline
                 name = arg_dict['name']
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_nmis{}.npy'.format(name),np.array(nmi_score_history))
                 np.save('/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/train_losses{}.npy'.format(name),np.array(loss_history))
@@ -443,10 +421,11 @@ def run4(arg_dict):
                 n_seen_classes = min(100,n_seen_classes)
             try:
                 for i in range(1):
-                    _,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
+                    #_,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
+                    _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
                     #pdb.set_trace()
-                    old_params = param_dict
-                    old_activations = activations_dict
+                    #old_params = param_dict
+                    #old_activations = activations_dict
                 #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
             except:
                 print 'error occured'
@@ -457,11 +436,6 @@ def run4(arg_dict):
             # ys_pred = np.matmul(clustering,clustering.T)
             # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
             nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-            #print 'before1:',before1
-            #print 'before2:',before2
-            #print 'before3:',before3
-            #print 'before4:',before4
-            #print 'before5:',before5
             print 'after: ',nmi_score
             nmi_score_history.append(nmi_score)
             loss_history.append(loss)
@@ -477,6 +451,13 @@ def run4(arg_dict):
     hyparams = [10**6,data_dir,k,n_,i_test, use_crop, use_curric]
     test_scores_e2e = []
     test_scores_ll = []
+    if arg_dict['deepset']:
+        filter_cond = lambda x: 'DeepSet' in str(x)
+        deepset_params = filter(filter_cond,tf.global_variables())
+        model.train_step = model.optimizer.minimize(model.loss, var_list=deepset_params) # freeze inception weights
+        train_nmis,test_scores = train(model,hyparams)
+        print 'finished training'
+        pdb.set_trace()
     if arg_dict['train_params']!="last":
         try:
             train_nmis,test_scores_e2e = train(model,hyparams)

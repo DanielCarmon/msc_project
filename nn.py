@@ -6,7 +6,8 @@ class NN():
     pass
 
 class MLP(NN):
-    def __init__(self,layer_widths,x=None,name=''):
+    def __init__(self,layer_widths,x=None,name='',initializer = tf.ones_initializer()):
+            
         # args:
         # n_hidden: list of layer widths
         # x: TF tensor
@@ -15,14 +16,16 @@ class MLP(NN):
         self.layer_widths = layer_widths
         self.activations = [x]
         self.params = []
+        self.initializer = initializer
         self.build()
     def build(self):
         activation = tf.nn.relu
+        initializer = self.initializer
         depth = len(self.layer_widths)
         for i in range(depth-1):
-            #initializer = tf.ones_initializer()
-            initializer = tf.contrib.layers.xavier_initializer()
-            weight_matrix = tf.get_variable("{}_DeepSetWeightMatrix{}".format(self.name,str(i)), [self.layer_widths[i+1],self.layer_widths[i]],initializer=initializer)
+            #initializer = tf.contrib.layers.xavier_initializer()
+            weight_matrix = tf.get_variable("{}_DeepSetWeightMatrix{}".format(self.name,str(i)), [self.layer_widths[i],self.layer_widths[i+1]],initializer=initializer)
+            weight_matrix = tf.Print(weight_matrix,[weight_matrix],'weight_matrix:')
             #weight_matrix = tf.Variable(np.eye(self.layer_widths[0])) #@debug
             #weight_matrix = tf.constant(np.eye(self.layer_widths[0])) #@debug
             weight_matrix = tf.cast(weight_matrix,tf.float32)

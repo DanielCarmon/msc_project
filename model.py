@@ -40,8 +40,10 @@ class Model:
 
         self.loss = self.loss_func(self.clustering, self.y, use_tg)
         # self.loss = self.stam(self.x_embed,self.y)
-        self.grads = tf.gradients(self.loss, embedder.params)  # gradient
-        self.grads = filter((lambda x: x!=None),self.grads) # remove None gradients from tf's batch norm params.
+        self.tf_grads = tf.gradients(self.loss, embedder.params)  # gradient
+        self.grads = filter((lambda x: x!=None),self.tf_grads) # remove None gradients from tf's batch norm params.
+        # need to set only var_list params?
+
         ##self.loss = tf.Print(self.loss, [self.loss], 'loss:')
         #self.loss = tf.Print(self.loss, [self.grads],'grad')
         #for i in range(1):
