@@ -21,6 +21,13 @@ def save(obj,fname):
     pickle_out = open(fname+'.pickle','wb+')
     pickle.dump(obj,pickle_out)
     pickle_out.close()
+def as_bool(flag):
+    if flag=='True':
+        return True
+    elif flag=='False':
+        return False
+    print 'Error at parsing occured'
+    pdb.set_trace()
 
 def my_parser(argv):
     ret = {}
@@ -36,6 +43,10 @@ def my_parser(argv):
                 except:
                     val = argv[i+1]
             ret[argv[i][2:]]=val
+    ret['deepset'] = as_bool(ret['deepset']) 
+    ret['use_tg'] = as_bool(ret['use_tg']) 
+    ret['use_curric'] = as_bool(ret['use_curric']) 
+    ret['use_crop'] = as_bool(ret['use_crop']) 
     
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
@@ -322,6 +333,7 @@ def run4(arg_dict):
     clst_module = arg_dict['cluster']
     hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
     model_lr = arg_dict['model_lr']
+    use_tg,use_crop,use_curric = arg_dict['use_tg'], arg_dict['use_crop'], arg_dict['use_curric']
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
     #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
@@ -334,58 +346,15 @@ def run4(arg_dict):
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'])
-    use_tg = bool(arg_dict['use_tg']) # trajectory gradient
     model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
     
-    use_crop,use_curric = arg_dict['use_crop'], arg_dict['use_curric']
-    # prepare test data
-    print 'Loading train data... '
-    first_100_data = load_specific_data(data_dir,range(1,101),use_crop)
-    print 'Loading test data... '
-    last_100_data = load_specific_data(data_dir,range(101,201),use_crop)
-    KMeans = cluster.KMeans
-    def test(test_data): 
-        print 'begin test'
-        test_xs,test_ys,test_ys_membership = test_data
-        n_test = test_xs.shape[0]
-        # 1) embed batch by batch
-        def get_embedding(xs_batch,startpoint,endpoint):
-            feed_dict = {startpoint:xs_batch}
-            return sess.run(endpoint,feed_dict=feed_dict)
-        np_embeddings = np.zeros((0,embed_dim))
-        startpoint,endpoint = model.x,model.x_embed
-        if arg_dict['deepset']: # need to batchwise apply pointwise embedder
-            #startpoint = tf.placeholder(tf.float32,[None,299,299,3])
-            startpoint = model.x
-            #endpoint = embedder_pointwise.embed(startpoint)
-            endpoint = embedder_pointwise.out #?
-            pdb.set_trace()
-            print 'meow'
-        i=0
-        n_batch = 400
-        while n_batch*i<n_test:
-            xs_batch = test_xs[n_batch*i:n_batch*(i+1)]       
-            print 'embedding batch ',i
-            embedded_xs_batch = get_embedding(xs_batch,startpoint,endpoint)
-            np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
-            i+=1
-        np_embeddings_normalized = l2_normalize(np_embeddings)
-        # 2) cluster
-        km = KMeans(n_clusters=n_test_classes).fit(np_embeddings)
-        #km_normalized = KMeans(n_clusters=n_test_classes).fit(np_embeddings_normalized)
-        labels = km.labels_
-        #labels_normalized = km_normalized.labels_
-        nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
-        #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
-        #scores = [nmi_score,nmi_score_normalized]
-        results = nmi_score
-        return results
-
+    saver = tf.train.Saver(tf.global_variables())
+    pdb.set_trace()
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
         train_scores = []
-        n_steps,data_dir,k,n_,i_test, use_crop, use_curric = hyparams
+        n_steps,data_dir,k,n_,i_log, use_crop, use_curric = hyparams
         param_history = []
         loss_history = []
         nmi_score_history = []
@@ -401,20 +370,11 @@ def run4(arg_dict):
             xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes, use_crop) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
-            if i%i_test==0 and not arg_dict['deepset']: # case where i==0 is baseline
+            if (i%i_log==0): # case where i==0 is baseline
                 name = arg_dict['name']
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_score_history))
                 np.save(project_dir+'train_losses{}.npy'.format(name),np.array(loss_history))
-                saver.save(sess,project_dir+"{}.ckpt".format(name))
-                #TODO: TEST ON A SEPERATE THREAD
-                test_scores.append(test(last_100_data)) # check over 100 last classes
-                train_scores.append(test(first_100_data)) # check over 100 first classes
-                print '*'*50
-                print 'test scores:',test_scores
-                print '*'*50
-
-                cp_file_name = 'test_scores{}.npy'.format(name)
-                np.save(cp_file_name,[test_scores,argv]) 
+                saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i)) 
             if (i+1)%i_update_seen_classes == 0:
                 n_seen_classes+=10
                 n_seen_classes = min(100,n_seen_classes)
@@ -446,8 +406,8 @@ def run4(arg_dict):
 
     print 'begin training'
     # end-to-end training:
-    i_test = 100 
-    hyparams = [10**6,data_dir,k,n_,i_test, use_crop, use_curric]
+    i_log = 100 
+    hyparams = [10**6,data_dir,k,n_,i_log, use_crop, use_curric]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
@@ -571,7 +531,7 @@ if __name__ == "__main__":
 '''
 train_nmis,test_nmis = [],[]
 try:
-    train_nmis,test_nmis = run4()
+    train_nmis,test_nmis = uun4()
 except:
     exc =  sys.exc_info()
     traceback.print_exception(*exc)

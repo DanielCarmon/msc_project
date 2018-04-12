@@ -450,7 +450,7 @@ def get_len_list(inds,data_dir,augment):
     ret = []
     for i in inds:
         to_append = lengths[i-1]
-        if augment: to_append = to_append/2 # don't count flipped images
+        if not augment: to_append = to_append/2 # don't count flipped images
         ret.append(to_append)
     return ret
 
@@ -465,7 +465,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     class_szs = get_len_list(inds,data_dir,augment)
     shape = sum(class_szs),299,299,3
     which_data = str(inds[0])+"_to_"+str(inds[-1])
-    xs_name = which_data+'xs{}'.format(version)
+    xs_name = which_data+'_xs{}'.format(version)
     if augment: xs_name+='_augmented'
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
@@ -473,7 +473,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
         print 'creating xs variable'
         xs = np.memmap(xs_name,dtype='float32',mode='w+',shape=shape)
         loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
-        loaded_data = [c[:len(c)/2] for c in loaded_data]# remove augmentation
+        loaded_data = [c[:len(c)/2] for c in loaded_data] # remove augmentation
         xs[...] = np.concatenate(loaded_data)
     
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
