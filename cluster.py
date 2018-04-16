@@ -190,6 +190,146 @@ class GDKMeansClusterer2(BaseClusterer):
         '''
         return membership_mat
 
+class GDKMeansPlusPlus(BaseClusterer):
+    ''' Optimize over cluster centroids.
+        Initialize centroids as in Kmeans++
+        Use Gumbel-Softmax trick to approximate a sampling from discrete dist.
+    '''
+
+    def __init__(self, data_params, k, learn_rate, n_iters=50, planted_values = False):
+        self.learn_rate = learn_rate
+        self.curr_step = 0
+        self.n_iters = n_iters
+        self.k = k
+        GDKMeansClusterer2.k = k  # todo: fix this
+        self.n, self.d = tuple(data_params) 
+        self.planted_values = planted_values
+        self.grad_log = []
+        self.cost_log = []
+        self.diff_history = []
+        self.maxgrad_history = []
+    def set_data(self, x):
+        '''
+            Sets x as input.
+            In addition, builds initialization pipeline for centroids
+        '''
+        self.x = x
+        self.init_params()
+    def init_params(self):
+        data = self.x
+        old_centroids = self.init_first_centroid(data)
+        for i in range(self.k):
+            old_centroids = self.centroid_choice_layer(data,old_centroids)
+        self.c = old_centroids
+        self.history_list = []  # different membership matrices across optimization
+
+    @staticmethod
+    def get_dist_mat(a, b):
+        reduce_norms = lambda a: tf.reduce_sum((a * a), axis=1)
+        global norms
+        norms1 = reduce_norms(a)[:, None]
+        norms2 = reduce_norms(b)[None, :]
+        norms = b
+        # norms = tf.concat([norms1,tf.transpose(norms2)],0)
+        global inner_prod_mat
+        inner_prod_mat = tf.matmul(a, tf.transpose(b))
+        dist_mat = (-2 * inner_prod_mat + norms1) + norms2
+        # dist_mat = tf.clip_by_value(dist_mat,clip_value_min=0,clip_value_max=1e+100) # for numerical stability. sometimes 0 is replaced by -epsilon. This instability causes a nan when we take a sqrt at the next line.
+        return dist_mat
+
+    @staticmethod
+    def get_prob_vector(data, old_centroids):
+        '''
+        input:
+            data - [n,d] data matrix
+            old_centroids - [k',d] centroid matrix
+        output:
+            [n,1] vector proportional to D^2(x_i) = softmin(d(xi,c1),...,d(xi,ck'))
+        '''
+        global dist_mat
+        dist_mat = GDKMeansPlusPlus.get_dist_mat(data, old_centroids)
+        means = tf.reduce_mean(dist_mat, 1)
+        dist_mat_normed = dist_mat - means[:, None]
+        bandwidth = 5
+        softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, dim=1)  # softmin
+        D = softmin_mat * dist_mat  # elementwise
+        D = tf.reduce_sum(D, 1)
+        D = D / tf.reduce_sum(D)
+        return D
+
+    @staticmethod
+    def centroid_choice_layer(data, old_centroids):
+        global prob_vector, new_centroid_coeffs
+        prob_vector = GDKMeansPlusPlus.get_prob_vector(data,
+                                      old_centroids)  # [n]. normalized (i.e a probability inducing) vector of soft-min distances from old centroids
+        eps = 1e-3
+        prob_vector += eps
+        prob_vector /= tf.reduce_sum(prob_vector)
+        relaxedOneHot = tf.contrib.distributions.RelaxedOneHotCategorical
+        dist = relaxedOneHot(temperature=5., probs=prob_vector)
+        new_centroid_coeffs = dist.sample()  # differentiable op. shape [n]
+        new_centroid = tf.matmul(new_centroid_coeffs[None, :], data)
+        old_centroids = tf.concat([old_centroids, new_centroid], 0)
+        return old_centroids
+
+    @staticmethod
+    def init_first_centroid(data):
+        old_centroids = data[0, :][None, :]  # no need to permute since feeded data is already permuted
+        # eps = 1e-10
+        # old_centroids += eps*tf.cast(tf.constant(np.random.rand(1,3)),tf.float32)
+        return old_centroids
+
+    def update_params(self):  # overrides super class method
+        self.curr_step += 1
+        cost = self.obj_f(self.c, self.x)
+        #cost = tf.Print(cost, [cost, self.x], 'cost')
+        #cost = tf.constant(1.) * cost
+        self.cost_log.append(cost)
+        # cost = nan_alarm(cost)
+        grads = tf.gradients(cost, self.c)[0]
+        # grads = nan_alarm(grads)
+        self.grad_log += [grads]
+        maxgrad = tf.reduce_max(grads)
+        self.maxgrad_history.append(maxgrad)
+        #mu = self.learn_rate / np.sqrt(self.curr_step)
+        mu = self.learn_rate
+        # self.c = tf.Print(self.c,[self.c],"before")
+        old = self.c
+        self.c = self.c - mu * grads  # update
+        diff = tf.reduce_sum((old-self.c)**2)
+        self.diff_history.append(diff)
+        # self.c = tf.Print(self.c,[self.c],"after")
+        # self.c = tf.Print(self.c,[""],"--------{}--------".format(str(self.curr_step)))
+        ""
+        self.history_list.append(self.get_membership_matrix(self.c, self.x))  # log
+    
+    @staticmethod
+    def obj_f(c, x):
+        membership_matrix = GDKMeansClusterer2.get_membership_matrix(c, x)
+        corresponding_c = tf.matmul(membership_matrix, c)
+        ret = tf.reduce_sum((corresponding_c - x) ** 2)
+        return ret
+
+    @staticmethod
+    def get_membership_matrix(c, x):
+        # returns [n,k] tensor
+        k = GDKMeansClusterer2.k
+        outer_subtraction = tf.subtract(x[:, :, None], tf.transpose(c), name='outer_subtraction')  # [n,d,k]
+        distance_mat = tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
+        # distance_mat = tf.Print(distance_mat,[tf.shape(distance_mat),distance_mat],"dist_mat:",summarize=30)
+        inv_tmp = 1  # control softmax sharpness
+        membership_mat = tf.nn.softmax(inv_tmp * (-distance_mat), 1)
+        '''
+        # non-differentiable:
+        argmins = tf.argmin(distance_mat,axis=1)
+        #argmins = tf.Print(argmins,[argmins],'argmins')
+        membership_mat = tf.one_hot(argmins,k)
+        '''
+        '''
+        for i in range(300):
+            membership_mat = tf.Print(membership_mat,[membership_mat[i][j] for j in range(3)],"beliefs{}:".format(str(i)))
+        '''
+        return membership_mat
 
 class KMeansClusterer(BaseClusterer):
     ''' Classic Hard-decision clustering '''
@@ -279,9 +419,10 @@ class KMeansClusterer(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20):
+    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20,fixed_rand=False):
         self.n_iters = n_iters
         self.bandwidth = bandwidth
+        self.fixed_rand = fixed_rand
         self.k = k
         self.n, self.d = tuple(data_params)
         # self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
@@ -292,7 +433,13 @@ class EMClusterer(BaseClusterer):
         self.x = x
 
     def init_params(self):
-        self.theta = tf.random_normal([self.k, self.d], seed=2017, name='theta_0')
+        if self.fixed_rand:    
+            np.random.seed(2018)
+            rand_init = np.random.normal(size=[self.k,self.d])
+            self.theta = tf.constant(rand_init,name = 'theta_0')
+            self.theta = tf.cast(self.theta,tf.float32)
+        else:
+            self.theta = tf.random_normal([self.k, self.d], seed=2017, name='theta_0')
         #self.theta = tf.get_variable('theta', shape=(self.k, self.d), initializer=tf.contrib.layers.xavier_initializer())
         self.history_list = []
         self.diff_history = []

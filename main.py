@@ -43,10 +43,9 @@ def my_parser(argv):
                 except:
                     val = argv[i+1]
             ret[argv[i][2:]]=val
+    ret['fixed_rand'] = as_bool(ret['fixed_rand'])
     ret['deepset'] = as_bool(ret['deepset']) 
     ret['use_tg'] = as_bool(ret['use_tg']) 
-    ret['use_curric'] = as_bool(ret['use_curric']) 
-    ret['use_crop'] = as_bool(ret['use_crop']) 
     
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
@@ -333,7 +332,7 @@ def run4(arg_dict):
     clst_module = arg_dict['cluster']
     hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
     model_lr = arg_dict['model_lr']
-    use_tg,use_crop,use_curric = arg_dict['use_tg'], arg_dict['use_crop'], arg_dict['use_curric']
+    use_tg = arg_dict['use_tg']
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
     #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
@@ -341,20 +340,21 @@ def run4(arg_dict):
     #embed_dim = 128
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
+    fixed_rand = arg_dict['fixed_rand']
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+    pdb.set_trace()
     if arg_dict['deepset']:
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
-    clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'])
+    clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],fixed_rand=fixed_rand)
     model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
     
-    saver = tf.train.Saver(tf.global_variables())
-    pdb.set_trace()
+    saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
         train_scores = []
-        n_steps,data_dir,k,n_,i_log, use_crop, use_curric = hyparams
+        n_steps,data_dir,k,n_,i_log  = hyparams
         param_history = []
         loss_history = []
         nmi_score_history = []
@@ -363,11 +363,8 @@ def run4(arg_dict):
         debug = False
         i_update_seen_classes = 5*10**30 # curriculum learning
         n_seen_classes = 100 # no curric!
-        if use_curric:
-            i_update_seen_classes = 5*10**3 # curriculum learning
-            n_seen_classes = 10
         for i in range(n_steps): 
-            xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes, use_crop) # gets n_ examples from k classes
+            xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes) # gets n_ examples from k classes
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
             if (i%i_log==0): # case where i==0 is baseline
@@ -407,9 +404,10 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    hyparams = [10**6,data_dir,k,n_,i_log, use_crop, use_curric]
+    hyparams = [10**6,data_dir,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
+    pdb.set_trace()
     if arg_dict['deepset']:
         filter_cond = lambda x: 'DeepSet' in str(x)
         deepset_params = filter(filter_cond,tf.global_variables())

@@ -48,33 +48,6 @@ class BaseEmbedder:
             pass
         return ret
 
-
-class TestEmbedder(BaseEmbedder):
-    def __init__(self, data_params):
-        self.n, self.img_dim = data_params
-        self.params = [tf.get_variable("embedding_matrix", [3 * (self.img_dim) ** 2, 1])]
-
-    def embed(self, x):
-        img_dim, num_col = self.img_dim, 3
-        x_embed = tf.reshape(x, [self.n, (img_dim ** 2) * num_col])  # [img_dim**2,num_col]
-        w = self.params[0]
-        # w = tf.Print(w,[w],"params:")
-        ret = tf.matmul(x_embed, w)
-        ret = ret / tf.norm(ret, 1)
-        return ret
-
-
-class TestEmbedder2(BaseEmbedder):
-    def __init__(self, data_params):
-        self.n, self.d = data_params
-        self.params = []
-
-    def embed(self, x):
-        mat = tf.Variable(np.random.rand(self.d, self.d))
-        mat = tf.cast(mat, tf.float32)
-        self.params.append(mat)
-        return tf.matmul(x, mat)
-
 class DeepSetEmbedder1(BaseEmbedder):
     """embedding flat vectors"""
     hidden_layer_width = [3]
