@@ -29,9 +29,11 @@ class BaseEmbedder:
         def new_embed(x):
             inner_embed = other.embed(x)
             other.out = inner_embed
-            self.deepset_pointer.params = self.params + other.params
-            return self.embed(inner_embed)
-        self.deepset_pointer = ret
+            self.out = self.embed(inner_embed)
+            ret.params = self.params + other.params # self: DeepSetEmbedder, other: InceptionEmbedder, ret: BaseEmbedder
+            # the deepset embedder's params are constructed only at the line 'self.embed(inner_embed)'
+            return self.out
+        ret.deepset_pointer = self
         ret.embed = new_embed
         ret.params = self.params + other.params
         try:
@@ -66,8 +68,9 @@ class DeepSetEmbedder1(BaseEmbedder):
     def embed(self,x):
         x = tf_print(x,msg='Embedding input')
         layer_widths = [self.d,self.d] # or something else
-        eps = 1e-10
-        init = tf.initializers.zeros()
+        eps = 1e-3
+        ##init = tf.initializers.constant(value=eps)
+        init = tf.contrib.layers.xavier_initializer()
         self.phi = MLP(layer_widths,x,"phi",init)
         phi_matrix = self.phi.output() # [n,d'] matrix of phi1(x_i)s.
         phi_matrix = tf_print(phi_matrix,msg='phi matrix')
@@ -79,10 +82,11 @@ class DeepSetEmbedder1(BaseEmbedder):
         context_matrix = tf_print(context_matrix,msg='context matrix')
         layer_widths = [2*self.d,self.d] # or something else
         concat_matrix = tf.concat([x,context_matrix],1)
-        init = tf.initializers.identity()
+        ##init = tf.initializers.identity()
         self.psi = MLP(layer_widths,concat_matrix,"psi",init)
         out = self.psi.output()
         out = tf_print(out,msg='Embedding output')
+        self.params += (self.phi.params+self.rho.params+self.psi.params)
         return out
     ''
 

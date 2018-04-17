@@ -80,11 +80,13 @@ def test(test_data):
     result = nmi_score
     return result
 
-range_checkpoints = range(151,600)  # get number of checkpoints to restore
+##range_checkpoints = range(151,600)  # get number of checkpoints to restore
+range_checkpoints = range(80)
 i_log = 100 # logging interval
 
-names = ['_em_5_iters','_tg_em_5_iters','_crop_em_5_iters','_curric_em_5_iters','_em_10_iters','_tg_em_10_iters','_crop_em_10_iters','_curric_em_10_iters']
-
+##names = ['_em_5_iters','_tg_em_5_iters','_crop_em_5_iters','_curric_em_5_iters','_em_10_iters','_tg_em_10_iters','_crop_em_10_iters','_curric_em_10_iters']
+names = ['_lr_1e-5_tg_deepset_em_5_iters']
+#names = ['_fixed_rand_em_5_iters','_fixed_rand_em_10_iters']
 for name in names:
     results = []
     test_last = False
@@ -94,13 +96,16 @@ for name in names:
     else:
         data = first_100_data
         cp_file_name = '1_to_100_scores{}.npy'.format(name)
-    to_append = np.load(cp_file_name)
+    ##to_append = np.load(cp_file_name)
+    to_append = [[]]
     for i in range_checkpoints:
-        print 'testing for {}, checkpoint #{}'.format(name,i)
+        print 'testing for {}, checkpoint #{}. last 100?{}'.format(name,i,str(test_last))
         ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
         saver.restore(sess,ckpt_path)
-        results.append(test(data))
-    np.save(cp_file_name,[to_append[0]+results,name]) # append new results by copying prev and rewriting 
+        result = test(data)
+        results.append(result)
+        np.save(cp_file_name,[to_append[0]+results,name]) # append new results by copying prev and rewriting 
+        print 'checkpoint result:',result
     print '*'*50
     print 'results for {}:'.format(name),results
     print '*'*50

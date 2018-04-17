@@ -25,12 +25,12 @@ class MLP(NN):
         for i in range(depth-1):
             #initializer = tf.contrib.layers.xavier_initializer()
             weight_matrix = tf.get_variable("{}_DeepSetWeightMatrix{}".format(self.name,str(i)), [self.layer_widths[i],self.layer_widths[i+1]],initializer=initializer)
+            self.params.append(weight_matrix)
             weight_matrix = tf.Print(weight_matrix,[weight_matrix],'weight_matrix:')
             #weight_matrix = tf.Variable(np.eye(self.layer_widths[0])) #@debug
             #weight_matrix = tf.constant(np.eye(self.layer_widths[0])) #@debug
             weight_matrix = tf.cast(weight_matrix,tf.float32)
             self.activations.append(self.out)
-            self.params.append(weight_matrix)
             self.out = tf.matmul(self.out,weight_matrix)
             #self.out = activation(self.out)
     def output(self):

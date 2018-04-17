@@ -43,7 +43,6 @@ def my_parser(argv):
                 except:
                     val = argv[i+1]
             ret[argv[i][2:]]=val
-    ret['fixed_rand'] = as_bool(ret['fixed_rand'])
     ret['deepset'] = as_bool(ret['deepset']) 
     ret['use_tg'] = as_bool(ret['use_tg']) 
     
@@ -340,13 +339,12 @@ def run4(arg_dict):
     #embed_dim = 128
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
-    fixed_rand = arg_dict['fixed_rand']
+    init = arg_dict['init']
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
-    pdb.set_trace()
     if arg_dict['deepset']:
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
-    clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],fixed_rand=fixed_rand)
+    clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
     model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
     
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
@@ -407,7 +405,6 @@ def run4(arg_dict):
     hyparams = [10**6,data_dir,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
-    pdb.set_trace()
     if arg_dict['deepset']:
         filter_cond = lambda x: 'DeepSet' in str(x)
         deepset_params = filter(filter_cond,tf.global_variables())

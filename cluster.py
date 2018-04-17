@@ -419,25 +419,38 @@ class KMeansClusterer(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20,fixed_rand=False):
+    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20,init=0):
         self.n_iters = n_iters
         self.bandwidth = bandwidth
-        self.fixed_rand = fixed_rand
+        self.init = init
         self.k = k
         self.n, self.d = tuple(data_params)
         # self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
-        self.init_params()  # TF constants for inner-optimization
 
     def set_data(self, x):
         #x = tf.Print(x,[x],'input x:')
         self.x = x
+        self.init_params()  # TF constants for inner-optimization. Init might be data-driven
 
     def init_params(self):
-        if self.fixed_rand:    
+        '''
+        different cases of self.init explained:
+        0: Random init
+        1: Fixed-Random init. Sample once at compile time and then allways use this.
+        2: Kmeans++ init. A data-driven init.
+        '''
+        if self.init==1:    
             np.random.seed(2018)
             rand_init = np.random.normal(size=[self.k,self.d])
             self.theta = tf.constant(rand_init,name = 'theta_0')
             self.theta = tf.cast(self.theta,tf.float32)
+        elif self.init==2:
+            data = self.x
+            old_centroids = GDKMeansPlusPlus.init_first_centroid(data)
+            for i in range(self.k):
+                old_centroids = GDKMeansPlusPlus.centroid_choice_layer(data,old_centroids)
+            self.theta = old_centroids
+
         else:
             self.theta = tf.random_normal([self.k, self.d], seed=2017, name='theta_0')
         #self.theta = tf.get_variable('theta', shape=(self.k, self.d), initializer=tf.contrib.layers.xavier_initializer())
