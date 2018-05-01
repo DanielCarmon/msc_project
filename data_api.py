@@ -1,5 +1,6 @@
 import pickle
 import numpy as np
+import tensorflow as tf
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import misc
@@ -298,11 +299,14 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
     # d: size to reshape images to. [d,d,3]
     # num_classes = total number of classes in dataset
     import Image
+    sess = tf.InteractiveSession()
+    data_ph = tf.placeholder(tf.uint8,[None,d,d,3])
+    xs_normalized = tf.image.convert_image_dtype(data_ph,tf.float32) # normalize image
     xs = np.zeros((0, d, d, 3))
     ys_membership = np.zeros((0, num_classes))
     # fill xs:
     print 'filling xs'
-    crop = True
+    crop = False
     class_names = open(data_dir + '/classes.txt').readlines()
     file_names = open(data_dir + '/images.txt').readlines()
     curr_class = 0
@@ -317,6 +321,7 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
             if fclass == class_name:
                 fname_ = data_dir + '/images/' + fname
                 im = Image.open(fname_)
+                #pdb.set_trace()
                 img_arr = np.array(im)
                 if len(img_arr.shape)!=3:
                     print 'bw image!'
@@ -330,19 +335,25 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
         #membership_vec[0, curr_class] = 1
         #ys_membership = np.vstack((ys_membership, membership_vec))
         curr_class += 1
-        print 'processing xs'
+        feed_dict={data_ph:xs}
+        xs = sess.run(xs_normalized,feed_dict=feed_dict)
+        xs_flipped = np.flip(xs,2) # horizontal flipping
+        xs_final = np.concatenate([xs,xs_flipped])
+
+        '''
+        bad preprocess:
         xs_mean = np.mean(xs,0)
         xs_var = np.mean((xs-xs_mean)**2, 0)
         xs_normalized = (xs-xs_mean)/np.sqrt(xs_var)
+        '''
         # save xs
         version_name = '' 
         if crop:
             version_name = '_cropped'
         save_dir_ = save_dir + '/class'+str(curr_class)+'{}.npy'.format(version_name)
         print 'saving at',save_dir_
-        np.save(save_dir_,xs_normalized)
+        np.save(save_dir_,xs_final)
     return 0
-
 
 def get_bird_train_data(k,n,d):
     '''
@@ -413,26 +424,43 @@ def get_bird_test_data(k,n,d):
     ys = np.matmul(ys_membership, ys_membership.T)
     return np.array(xs), ys
 
-loaded_train_data = None # global. data on RAM
+CUB_loaded_train_data = None # global. data on RAM
 def get_bird_train_data2(data_dir,k,n,n_seen_classes=100,use_crop = False):
-    global loaded_train_data
+    global CUB_loaded_train_data
     train_classes = range(1,1+n_seen_classes) 
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
     #print 'classes:',classes
-    if loaded_train_data is None:
+    if CUB_loaded_train_data is None:
         print 'loading train data'
         version= ''
         if use_crop: version = '_cropped' # decide which data augmentation to use. crop+resize or just resize
         # loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
-        loaded_train_data = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in range(1,101)] # curriculum
-    loaded_data = [loaded_train_data[c-1] for c in classes]
+        CUB_loaded_train_data = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in range(1,101)]
+    loaded_data = [CUB_loaded_train_data[c-1] for c in classes]
     loaded_data = [np.random.permutation(class_data)[:n] for class_data in loaded_data] # take random subsample 
     class_szs = [class_data.shape[0] for class_data in loaded_data]
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
     xs = np.concatenate(loaded_data,0)
     return xs,ys
+
+def get_train_batch(dataset_flag,k,n):
+    '''
+    dataset_flag:
+        0: CUB Birds
+        1: Stanford Cars
+        2: Stanford Products
+    k: num of classes in mini-batch
+    n: num of datapoints in mini-batch
+    '''
+    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_procudts']
+    data_dir = data_dirs[dataset_flag]
+    if dataset_flag==0:
+        n_per_class = int(n/k)
+        return get_bird_train_data2(data_dir,k,n_per_class)
+    else:
+        return NotImplemented
 
 def augment(data_dir,version=''):
     """ this should only be called once """
@@ -475,7 +503,6 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
         loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
         loaded_data = [c[:len(c)/2] for c in loaded_data] # remove augmentation
         xs[...] = np.concatenate(loaded_data)
-    
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
@@ -486,3 +513,25 @@ def l2_normalize(arr):
     arr_norms = np.sqrt(np.sum(arr**2,1))
     arr_norms = np.reshape(arr_norms,[arr.shape[0],1])
     return arr/arr_norms
+
+def get_data(split_flag,dataset_flag):
+    '''
+    split_flag:
+        0: train
+        1: test
+    dataset_flag:
+        0: birds
+        1: cars
+        2: products
+    '''
+    ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
+    data_dirs = [ddp+'caltech_birds',ddp+'stanford_cars',ddp+'stanford_products']
+    train_inds_list = [range(1,101),range(1,99),range(0,0)]
+    test_inds_list = [range(101,201),range(99,196),range(0,0)]
+    split_flag = int(split_flag)
+    split_list = [train_inds_list,test_inds_list]
+    inds = split_list[split_flag][dataset_flag]
+    data_dir = data_dirs[dataset_flag]
+    return load_specific_data(data_dir,inds)
+
+# Need to fix the thing with "get_len_list" etc.

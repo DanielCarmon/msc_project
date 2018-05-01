@@ -17,19 +17,17 @@ import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 
-data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
+dataset_flag = 0
 use_deepset = False
-test_last = False 
+test_last = True 
+print 'Loading train data... '
+data = get_data(test_last,dataset_flag)
 if test_last:
-    print 'Loading train data... '
-    data = load_specific_data(data_dir,range(101,201))
     fname_prefix = '101_to_200_scores'
 else:
-    print 'Loading train data... '
-    data = load_specific_data(data_dir,range(1,101))
     fname_prefix = '1_to_100_scores'
 sess = tf.InteractiveSession()
 
@@ -56,6 +54,7 @@ def test(test_data,use_deepset=False):
     print 'begin test'
     test_xs,test_ys,test_ys_membership = test_data
     n_test = test_xs.shape[0]
+    n_clusters = test_ys_membership.shape[1]
     # 1) embed batch by batch
     def get_embedding(xs_batch,startpoint,endpoint):
         feed_dict = {startpoint:xs_batch}
@@ -77,7 +76,7 @@ def test(test_data,use_deepset=False):
         np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
         print 'after ds module:',np_embeddings
     # 2) cluster
-    km = KMeans(n_clusters=100).fit(np_embeddings)
+    km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
     labels = km.labels_
     #labels_normalized = km_normalized.labels_
     nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
@@ -86,30 +85,32 @@ def test(test_data,use_deepset=False):
     result = nmi_score
     return result
 
-##range_checkpoints = range(151,600)  # get number of checkpoints to restore
-range_checkpoints = range(201,500)
+#range_checkpoints = range(151,600)  # get number of checkpoints to restore
+#range_checkpoints = range(201,500)
+range_checkpoints = range(300,600)
 i_log = 100 # logging interval
 
 ##names = ['_em_5_iters','_tg_em_5_iters','_crop_em_5_iters','_curric_em_5_iters','_em_10_iters','_tg_em_10_iters','_crop_em_10_iters','_curric_em_10_iters']
 #names = ['_tg_deepset_xavier_init_em_5_iters']
-names = ['_kmeans++_init_em_5_iters','_kmeans++_init_em_10_iters']
+names = ['_kmeans++_init_em_3_iters']
 for name in names:
     results = []
     cp_file_name = fname_prefix+'{}.npy'.format(name)
     append_to_existing_log = range_checkpoints[0]!=0
     print 'appending to existing log?',append_to_existing_log
     if append_to_existing_log:
-        to_append = np.load(cp_file_name)
+        last_prev_ind = range_checkpoints[0]
+        to_append = np.load(cp_file_name)[0][:last_prev_ind]
     else:
-        to_append = [[]]
+        to_append = []
     for i in range_checkpoints:
-        print 'testing for {}, checkpoint #{}. last 100?{}'.format(name,i,str(test_last))
+        print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
         ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
         try:
             saver.restore(sess,ckpt_path)
             result = test(data,use_deepset)
             results.append(result)
-            np.save(cp_file_name,[to_append[0]+results,name]) # append new results by copying prev and rewriting 
+            np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
             print 'checkpoint result:',result
         except:
             pass

@@ -45,7 +45,7 @@ def my_parser(argv):
             ret[argv[i][2:]]=val
     ret['deepset'] = as_bool(ret['deepset']) 
     ret['use_tg'] = as_bool(ret['use_tg']) 
-    
+     
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
     if ret['cluster'] == "kmeans":
@@ -326,8 +326,8 @@ def run4(arg_dict):
         k = arg_dict['n_train_classes']
     n_gpu_can_handle = 100
     n_ = n_gpu_can_handle/k # points per cluster
-    data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
     n = n_*k
+    dataset_flag = arg_dict['dataset']
     clst_module = arg_dict['cluster']
     hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
     model_lr = arg_dict['model_lr']
@@ -352,17 +352,15 @@ def run4(arg_dict):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
         train_scores = []
-        n_steps,data_dir,k,n_,i_log  = hyparams
+        n_steps,k,n_,i_log  = hyparams
         param_history = []
         loss_history = []
         nmi_score_history = []
         step = model.train_step
 
         debug = False
-        i_update_seen_classes = 5*10**30 # curriculum learning
-        n_seen_classes = 100 # no curric!
         for i in range(n_steps): 
-            xs, ys = get_bird_train_data2(data_dir,k, n_, n_seen_classes) # gets n_ examples from k classes
+            xs, ys = get_train_batch(dataset_flag,k,n)
             feed_dict = {model.x: xs, model.y: ys}
             print 'at train step', i
             if (i%i_log==0): # case where i==0 is baseline
@@ -370,9 +368,9 @@ def run4(arg_dict):
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_score_history))
                 np.save(project_dir+'train_losses{}.npy'.format(name),np.array(loss_history))
                 saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i)) 
-            if (i+1)%i_update_seen_classes == 0:
-                n_seen_classes+=10
-                n_seen_classes = min(100,n_seen_classes)
+            #if (i+1)%i_update_seen_classes == 0:
+            #    n_seen_classes+=10
+            #    n_seen_classes = min(100,n_seen_classes)
             try:
                 for i in range(1):
                     #_,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
@@ -402,7 +400,7 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    hyparams = [10**6,data_dir,k,n_,i_log]
+    hyparams = [10**6,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
@@ -438,18 +436,15 @@ def run5():
     """ test Inception baseline for clustering bird classes 101:200 """
     global sess
     d = 299
-    data_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds'
-    inds = range(101,201)
-    n_clusters = len(inds)
-    data = load_specific_data(data_dir,inds)
+    n_clusters = 100
+    split_flag = 1
+    dataset_flag = 0
+    data = get_data(split_flag,dataset_flag) 
     n = data[0].shape[0]
     xs,ys,ys_membership = data
     
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
-    #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
-    #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
-    # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
 
@@ -464,7 +459,7 @@ def run5():
         return sess.run(tf_endpoint,feed_dict=feed_dict)
     #np_embeddings = np.zeros((0,2048))
     np_embeddings = np.zeros((0,embed_dim))
-    for i in range(len(inds)): # embed data batch by batch
+    for i in range(100): # embed data batch by batch
         xs_batch = xs[60*i:60*(i+1)]
         print 'embedding batch ',i
         embedded_xs_batch = get_embedding(xs_batch,tf_endpoint)
@@ -473,8 +468,12 @@ def run5():
     n = np_embeddings.shape[0]
     from sklearn import cluster
     KMeans = cluster.KMeans
+    print 'begin kmeans fit over embeddings'
     km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
+    print 'endkmeans fit over embeddings'
+    print 'begin kmeans fit over normalized embeddings'
     km_normalized = KMeans(n_clusters=n_clusters).fit(np_embeddings_normalized)
+    print 'end kmeans fit over normalized embeddings'
     import pickle
     f = open('sklearn_kmeans_res.txt','w')
     labels = km.labels_
@@ -484,9 +483,6 @@ def run5():
     scores = [nmi_score,nmi_score_normalized]
     pickle.dump(scores,f)
     print scores
-    pdb.set_trace()
-    while True:
-        a = 1
     # KMeans clustering of baseline embeddings:
     clusterer = KMeansClusterer([n, embed_dim], n_clusters) 
     tf_x = tf.placeholder(tf.float32, [n, embed_dim])
