@@ -501,7 +501,7 @@ def augment(data_dir,version=''):
 #augment('/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds',version='_cropped')
 
 def get_len_list(inds,data_dir,augment):
-    lengths = pickle.load(open(data_dir+'/lengths.pickle'))
+    lengths = pickle.load(open(data_dir+'/lengths.pickle')) # file with number of imgs in each class. each data_dir needs to contain this file.
     ret = []
     for i in inds:
         to_append = lengths[i-1]
@@ -510,14 +510,14 @@ def get_len_list(inds,data_dir,augment):
     return ret
 
 def load_specific_data(data_dir,inds,augment=False,use_crop=False):
-    global loaded_test_data
     version = ''
     if use_crop: version = '_cropped'
     data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
     class_szs = get_len_list(inds,data_dir,augment)
     shape = sum(class_szs),299,299,3
     which_data = str(inds[0])+"_to_"+str(inds[-1])
-    xs_name = which_data+'_xs{}'.format(version)
+    which_dataset = data_dir.split('/')[-1]
+    xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
     if augment: xs_name+='_augmented'
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
@@ -557,5 +557,3 @@ def get_data(split_flag,dataset_flag):
     inds = split_list[split_flag][dataset_flag]
     data_dir = data_dirs[dataset_flag]
     return load_specific_data(data_dir,inds)
-
-# Need to fix the thing with "get_len_list" etc.
