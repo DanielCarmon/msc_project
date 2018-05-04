@@ -9,6 +9,9 @@ from scipy.linalg import block_diag
 import pdb
 from scipy.misc import imread, imresize
 rand = np.random.randint
+def echo(x):
+    print 'loading:',x
+    return x
 def img_animate(tensor):
     import matplotlib.animation as anim
     import types
@@ -425,6 +428,9 @@ def get_bird_test_data(k,n,d):
     return np.array(xs), ys
 
 CUB_loaded_train_data = None # global. data on RAM
+cars169_loaded_train_data = None # global. data on RAM
+products_loaded_train_data = None # global. data on RAM
+loaded_train_data_list = [CUB_loaded_train_data,cars169_loaded_train_data,products_loaded_train_data]
 def get_bird_train_data2(data_dir,k,n,n_seen_classes=100,use_crop = False):
     global CUB_loaded_train_data
     train_classes = range(1,1+n_seen_classes) 
@@ -445,7 +451,8 @@ def get_bird_train_data2(data_dir,k,n,n_seen_classes=100,use_crop = False):
     xs = np.concatenate(loaded_data,0)
     return xs,ys
 
-def get_train_batch(dataset_flag,k,n):
+def get_train_batch(dataset_flag,k,n,use_crop=False):
+    global loaded_train_data_list
     '''
     dataset_flag:
         0: CUB Birds
@@ -454,13 +461,33 @@ def get_train_batch(dataset_flag,k,n):
     k: num of classes in mini-batch
     n: num of datapoints in mini-batch
     '''
-    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_procudts']
+    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products']
+    
     data_dir = data_dirs[dataset_flag]
+    n_per_class = int(n/k)
     if dataset_flag==0:
-        n_per_class = int(n/k)
         return get_bird_train_data2(data_dir,k,n_per_class)
-    else:
-        return NotImplemented
+    elif dataset_flag==1:
+        pass
+    train_classes_list = [range(1,101),range(1,99),range(1)]
+    train_classes = train_classes_list[dataset_flag]
+    perm = np.random.permutation(train_classes)
+    classes = perm[range(k)]
+    loaded_train_data = loaded_train_data_list[dataset_flag]
+    if loaded_train_data is None:
+        print 'loading train data'
+        version= ''
+        if use_crop: version = '_cropped' # decide which data augmentation to use. crop+resize or just resize
+        # loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
+        loaded_train_data = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in train_classes]
+    ## TODO: make loaded train data global var. so it won't be None at every iter
+    loaded_data = [loaded_train_data[c-1] for c in classes]
+    loaded_data = [np.random.permutation(class_data)[:n_per_class] for class_data in loaded_data] # take random subsample 
+    class_szs = [class_data.shape[0] for class_data in loaded_data]
+    agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
+    ys = block_diag(*agreement_islands) # partition matrix
+    xs = np.concatenate(loaded_data,0)
+    return xs,ys
 
 def augment(data_dir,version=''):
     """ this should only be called once """
@@ -484,9 +511,6 @@ def get_len_list(inds,data_dir,augment):
 
 def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     global loaded_test_data
-    def echo(x):
-        print 'loading:',x
-        return True
     version = ''
     if use_crop: version = '_cropped'
     data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]

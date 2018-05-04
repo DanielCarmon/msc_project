@@ -59,6 +59,7 @@ class Model:
         self.loss = 1.*self.loss
         self.train_step = self.optimizer.minimize(self.loss)
         if not isinstance(embedder,ProjectionEmbedder):
+            print 'initializing global variables'
             self.sess.run(tf.global_variables_initializer())
             self.embedder.load_weights(self.sess)
     @staticmethod

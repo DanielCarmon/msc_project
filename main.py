@@ -1,3 +1,5 @@
+import os
+import os.path
 import tensorflow as tf
 from sklearn import cluster
 import traceback
@@ -345,9 +347,21 @@ def run4(arg_dict):
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
+    print 'building model object'
     model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
-    
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
+    n_offset = 0 # no. of previous checkpoints
+    try: # restore last ckpt
+        if arg_dict['restore_last']:
+            name = arg_dict['name']
+            ckpt_path = project_dir+name
+            n_ckpt_files  = len([fname for fname in os.listdir(ckpt_path) if os.path.isfile(os.path.join(ckpt_path, fname))])
+            n_last_ckpt = ((n_ckpt_files-1)/3-1)*100
+            ckpt_path = ckpt_path+'/step_{}.ckpt'.format(n_last_ckpt)
+            print 'Restoring parameters from',ckpt_path
+            saver.restore(sess,ckpt_path)
+            n_offset = n_last_ckpt+1
+    except: print 'no previous checkpoints found'
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
@@ -359,10 +373,12 @@ def run4(arg_dict):
         step = model.train_step
 
         debug = False
-        for i in range(n_steps): 
+        for i in range(n_offset,n_steps): 
             xs, ys = get_train_batch(dataset_flag,k,n)
             feed_dict = {model.x: xs, model.y: ys}
+            
             print 'at train step', i
+            
             if (i%i_log==0): # case where i==0 is baseline
                 name = arg_dict['name']
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_score_history))

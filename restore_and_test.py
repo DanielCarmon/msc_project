@@ -1,3 +1,5 @@
+import os
+import os.path
 import tensorflow as tf
 from sklearn import cluster
 import traceback
@@ -22,7 +24,7 @@ project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
 dataset_flag = 0
 use_deepset = False
-test_last = True 
+test_last = True
 print 'Loading train data... '
 data = get_data(test_last,dataset_flag)
 if test_last:
@@ -85,23 +87,24 @@ def test(test_data,use_deepset=False):
     result = nmi_score
     return result
 
-#range_checkpoints = range(151,600)  # get number of checkpoints to restore
-#range_checkpoints = range(201,500)
-range_checkpoints = range(300,600)
+default_range_checkpoints = range(300) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 
 ##names = ['_em_5_iters','_tg_em_5_iters','_crop_em_5_iters','_curric_em_5_iters','_em_10_iters','_tg_em_10_iters','_crop_em_10_iters','_curric_em_10_iters']
 #names = ['_tg_deepset_xavier_init_em_5_iters']
-names = ['_kmeans++_init_em_3_iters']
+names = ['_lr_1e-5_tg_kmeans++_init_em_1_iters','_lr_1e-5_tg_kmeans++_init_em_3_iters','_lr_1e-5_tg_kmeans++_init_em_5_iters','_lr_1e-5_tg_kmeans++_init_em_10_iters']
 for name in names:
     results = []
     cp_file_name = fname_prefix+'{}.npy'.format(name)
-    append_to_existing_log = range_checkpoints[0]!=0
-    print 'appending to existing log?',append_to_existing_log
-    if append_to_existing_log:
-        last_prev_ind = range_checkpoints[0]
-        to_append = np.load(cp_file_name)[0][:last_prev_ind]
-    else:
+    DIR = project_dir+'/{}'.format(name)
+    try: # load previous results, see what checkpoint was last restored and tested
+        to_append = np.load(cp_file_name)[0]
+        n_tests_already_made = len(to_append)
+        range_checkpoints = default_range_checkpoints[n_tests_already_made:]
+        #n_files = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
+        #n_existing_ckpts = (n_files-1)/3 
+    except:
+        range_checkpoints = default_range_checkpoints
         to_append = []
     for i in range_checkpoints:
         print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
