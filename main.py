@@ -448,21 +448,21 @@ def run4(arg_dict):
     print 'e2e:',test_scores_e2e
     print 'll:',test_scores_ll
     return test_scores_e2e,test_scores_ll
-def run5():
+def run5(dataset_flag=0,output_layer='logits'):
     """ test Inception baseline for clustering bird classes 101:200 """
     global sess
     d = 299
-    n_clusters = 100
     split_flag = 1
     dataset_flag = 0
     data = get_data(split_flag,dataset_flag) 
     n = data[0].shape[0]
     xs,ys,ys_membership = data
+    n_clusters = ys_membership.shape[1]
     
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
     embed_dim = 1001
-    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,output_layer=output_layer)
 
     tf_x = tf.placeholder(tf.float32, [None, d, d, 3])
     print 'building embedding pipeline'
@@ -473,18 +473,27 @@ def run5():
     def get_embedding(xs_batch,tf_endpoint):
         feed_dict = {tf_x:xs_batch}
         return sess.run(tf_endpoint,feed_dict=feed_dict)
-    #np_embeddings = np.zeros((0,2048))
     np_embeddings = np.zeros((0,embed_dim))
-    for i in range(100): # embed data batch by batch
+    i=0
+    while 60*i<n:
         xs_batch = xs[60*i:60*(i+1)]
         print 'embedding batch ',i
         embedded_xs_batch = get_embedding(xs_batch,tf_endpoint)
         np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
+        i+=1
+    print xs.shape
+    print np_embeddings.shape
+    np_embeddings1001 = np_embeddings[:,:]
+    neuron_inds = range(1001)
+    subsampled_inds = np.random.choice(neuron_inds,n_clusters)
+    np_embeddings = np_embeddings[:,subsampled_inds]  # subsampling
+    pdb.set_trace()
     np_embeddings_normalized = l2_normalize(np_embeddings)
     n = np_embeddings.shape[0]
     from sklearn import cluster
     KMeans = cluster.KMeans
     print 'begin kmeans fit over embeddings'
+    #km = KMeans(n_clusters=n_clusters,init='random').fit(np_embeddings) # regular kmeans
     km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
     print 'endkmeans fit over embeddings'
     print 'begin kmeans fit over normalized embeddings'
@@ -499,22 +508,6 @@ def run5():
     scores = [nmi_score,nmi_score_normalized]
     pickle.dump(scores,f)
     print scores
-    # KMeans clustering of baseline embeddings:
-    clusterer = KMeansClusterer([n, embed_dim], n_clusters) 
-    tf_x = tf.placeholder(tf.float32, [n, embed_dim])
-    clusterer.set_data(tf_x)
-    tf_endpoint = clusterer.infer_clustering()
-    feed_dict = {tf_x:np_embeddings}
-    clustering,diff_history = sess.run([tf_endpoint,clusterer.diff_history],feed_dict=feed_dict)
-    clustering = clustering[-1]
-    # calculate score:
-    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_membership, 1))
-    print 'unnormalized data nmi_score:', nmi_score 
-    feed_dict = {tf_x:np_embeddings_normalized}
-    clustering,diff_history = sess.run([tf_endpoint,clusterer.diff_history],feed_dict=feed_dict)
-    clustering = clustering[-1]
-    nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys_membership, 1))
-    print 'normalized data nmi_score:', nmi_score 
     pdb.set_trace()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
@@ -526,14 +519,19 @@ sess = tf.InteractiveSession(config=config)
 if __name__ == "__main__":
     argv = sys.argv
     run = argv[1]
-    if len(argv)>2:
-        arg_dict = my_parser(argv)
     if run=='3':
         run3()
     if run=='4':
+        if len(argv)>2:
+            arg_dict = my_parser(argv)
         run4(arg_dict)
     if run=='5':
-        run5()
+        dataset_flag=0
+        if len(argv)>2:
+            dataset_flag=argv[2]
+            if len(argv)>3:
+                output_layer=argv[3]
+        run5(dataset_flag,output_layer)
 
 '''
 train_nmis,test_nmis = [],[]

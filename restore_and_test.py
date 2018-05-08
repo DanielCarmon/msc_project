@@ -87,12 +87,13 @@ def test(test_data,use_deepset=False):
     result = nmi_score
     return result
 
-default_range_checkpoints = range(300) # might want to restore and test only a suffix of this
+default_range_checkpoints = range(500) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 
 ##names = ['_em_5_iters','_tg_em_5_iters','_crop_em_5_iters','_curric_em_5_iters','_em_10_iters','_tg_em_10_iters','_crop_em_10_iters','_curric_em_10_iters']
 #names = ['_tg_deepset_xavier_init_em_5_iters']
-names = ['_lr_1e-5_tg_kmeans++_init_em_1_iters','_lr_1e-5_tg_kmeans++_init_em_3_iters','_lr_1e-5_tg_kmeans++_init_em_5_iters','_lr_1e-5_tg_kmeans++_init_em_10_iters']
+#names = ['_lr_1e-5_tg_kmeans++_init_em_1_iters','_lr_1e-5_tg_kmeans++_init_em_3_iters','_lr_1e-5_tg_kmeans++_init_em_5_iters','_lr_1e-5_tg_kmeans++_init_em_10_iters']
+names = ['_tg_kmeans++_init_em_1_iters','_tg_kmeans++_init_em_3_iters','_tg_kmeans++_init_em_5_iters','_tg_kmeans++_init_em_10_iters']
 for name in names:
     results = []
     cp_file_name = fname_prefix+'{}.npy'.format(name)
@@ -101,6 +102,7 @@ for name in names:
         to_append = np.load(cp_file_name)[0]
         n_tests_already_made = len(to_append)
         range_checkpoints = default_range_checkpoints[n_tests_already_made:]
+        print 'restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1]
         #n_files = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
         #n_existing_ckpts = (n_files-1)/3 
     except:
@@ -110,6 +112,7 @@ for name in names:
         print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
         ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
         try:
+            #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
             saver.restore(sess,ckpt_path)
             result = test(data,use_deepset)
             results.append(result)

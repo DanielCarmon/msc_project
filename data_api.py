@@ -549,7 +549,7 @@ def get_data(split_flag,dataset_flag):
         2: products
     '''
     ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
-    data_dirs = [ddp+'caltech_birds',ddp+'stanford_cars',ddp+'stanford_products']
+    data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products']
     train_inds_list = [range(1,101),range(1,99),range(0,0)]
     test_inds_list = [range(101,201),range(99,196),range(0,0)]
     split_flag = int(split_flag)

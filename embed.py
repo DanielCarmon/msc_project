@@ -424,13 +424,14 @@ class Vgg16Embedder(BaseEmbedder):
         return self.output
 
 class InceptionEmbedder(BaseEmbedder):
-    def __init__(self, weight_file=None, sess=None, embed_dim = 1001):
+    def __init__(self, weight_file=None, sess=None, embed_dim = 1001,output_layer='logits'):
         self.embed_dim = embed_dim
         self.weight_file = weight_file
         self.sess = sess
         self.pretrained = self.built = False
         self.saver = None
         self.params = []
+        self.output_layer = output_layer
         self.endpoints = 0
     def embed(self, x, for_training = False):
         print x
@@ -446,7 +447,14 @@ class InceptionEmbedder(BaseEmbedder):
         #                              name="last_layer")
         # self.output = tf.matmul(self.logits,self.last_layer)
         # self.params.append(self.last_layer)
-        self.output = self.activations_dict['aux_logits']
+        output_layer_name = self.output_layer
+        try:
+            self.output = self.activations_dict[output_layer_name]; print "using '{}' as output layer".format(output_layer_name)
+        except:
+            print 'Error. unknown layer name:',output_layer_name
+            print 'Please use one of these names:'
+            print self.activations_dict.keys()
+            exit()
         return self.output
     def load_weights(self,sess):
         print 'start loading pre-trained weights'
