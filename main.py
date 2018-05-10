@@ -342,7 +342,9 @@ def run4(arg_dict):
     # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
     embed_dim = 1001
     init = arg_dict['init']
-    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+    list_final_clusters = [100,98,512]
+    n_final_clusters = list_final_clusters[dataset_flag]
+    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
     if arg_dict['deepset']:
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
@@ -453,7 +455,7 @@ def run5(dataset_flag=0,output_layer='logits'):
     global sess
     d = 299
     split_flag = 1
-    dataset_flag = 0
+    pdb.set_trace()
     data = get_data(split_flag,dataset_flag) 
     n = data[0].shape[0]
     xs,ys,ys_membership = data
@@ -483,10 +485,10 @@ def run5(dataset_flag=0,output_layer='logits'):
         i+=1
     print xs.shape
     print np_embeddings.shape
-    np_embeddings1001 = np_embeddings[:,:]
-    neuron_inds = range(1001)
-    subsampled_inds = np.random.choice(neuron_inds,n_clusters)
-    np_embeddings = np_embeddings[:,subsampled_inds]  # subsampling
+    #np_embeddings1001 = np_embeddings[:,:]
+    #neuron_inds = range(2048)
+    #subsampled_inds = np.random.choice(neuron_inds,n_clusters)
+    #np_embeddings = np_embeddings[:,subsampled_inds]  # subsampling
     pdb.set_trace()
     np_embeddings_normalized = l2_normalize(np_embeddings)
     n = np_embeddings.shape[0]
@@ -528,7 +530,7 @@ if __name__ == "__main__":
     if run=='5':
         dataset_flag=0
         if len(argv)>2:
-            dataset_flag=argv[2]
+            dataset_flag=int(argv[2])
             if len(argv)>3:
                 output_layer=argv[3]
         run5(dataset_flag,output_layer)
@@ -536,7 +538,7 @@ if __name__ == "__main__":
 '''
 train_nmis,test_nmis = [],[]
 try:
-    train_nmis,test_nmis = uun4()
+    train_nmis,test_nmis = run4()
 except:
     exc =  sys.exc_info()
     traceback.print_exception(*exc)

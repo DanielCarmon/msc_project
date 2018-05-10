@@ -303,13 +303,15 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
     # num_classes = total number of classes in dataset
     import Image
     sess = tf.InteractiveSession()
+    # two lines computation graph:
     data_ph = tf.placeholder(tf.uint8,[None,d,d,3])
     xs_normalized = tf.image.convert_image_dtype(data_ph,tf.float32) # normalize image
+    
     xs = np.zeros((0, d, d, 3))
     ys_membership = np.zeros((0, num_classes))
     # fill xs:
     print 'filling xs'
-    crop = False
+    crop = True
     class_names = open(data_dir + '/classes.txt').readlines()
     file_names = open(data_dir + '/images.txt').readlines()
     curr_class = 0
@@ -330,6 +332,8 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
                     print 'bw image!'
                     continue
                 if crop: # cropping as described at Zemel et al. Added on 28.3.18
+                    print 'cropping',fname
+                    #pdb.set_trace() # TODO: SOLVE 0 NMI BUG!
                     img_arr = imresize(img_arr, (256, 256))
                     img_arr = crop_center(img_arr,227,227)
                 img_arr = imresize(img_arr, (d, d))  # resize.
@@ -351,13 +355,14 @@ def preprocess_data(data_dir, save_dir,d,num_classes=200):
         '''
         # save xs
         version_name = '' 
-        if crop:
-            version_name = '_cropped'
+        #if crop:
+        #    version_name = '_cropped'
         save_dir_ = save_dir + '/class'+str(curr_class)+'{}.npy'.format(version_name)
         print 'saving at',save_dir_
         np.save(save_dir_,xs_final)
     return 0
-
+#data_dir = save_dir = '/home/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011'
+#preprocess_data(data_dir,save_dir,299)
 def get_bird_train_data(k,n,d):
     '''
     :param k: num classes

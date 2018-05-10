@@ -35,7 +35,9 @@ sess = tf.InteractiveSession()
 
 d = 299
 embed_dim = 1001
-embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim)
+list_final_clusters = [100,98,512]
+n_final_clusters = list_final_clusters[dataset_flag]
+embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
 endpoint = embedder.embed(startpoint)
 
@@ -61,7 +63,8 @@ def test(test_data,use_deepset=False):
     def get_embedding(xs_batch,startpoint,endpoint):
         feed_dict = {startpoint:xs_batch}
         return sess.run(endpoint,feed_dict=feed_dict)
-    np_embeddings = np.zeros((0,embed_dim))
+    output_dim = int(endpoint.shape[1].__str__()) # width of last layer in embedder
+    np_embeddings = np.zeros((0,output_dim))
     
     i=0
     n_batch = 400
@@ -90,10 +93,7 @@ def test(test_data,use_deepset=False):
 default_range_checkpoints = range(500) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 
-##names = ['_em_5_iters','_tg_em_5_iters','_crop_em_5_iters','_curric_em_5_iters','_em_10_iters','_tg_em_10_iters','_crop_em_10_iters','_curric_em_10_iters']
-#names = ['_tg_deepset_xavier_init_em_5_iters']
-#names = ['_lr_1e-5_tg_kmeans++_init_em_1_iters','_lr_1e-5_tg_kmeans++_init_em_3_iters','_lr_1e-5_tg_kmeans++_init_em_5_iters','_lr_1e-5_tg_kmeans++_init_em_10_iters']
-names = ['_tg_kmeans++_init_em_1_iters','_tg_kmeans++_init_em_3_iters','_tg_kmeans++_init_em_5_iters','_tg_kmeans++_init_em_10_iters']
+names = ['_lr_1e-4_tg_init++_em_1_iters','_lr_1e-5_tg_init++_em_1_iters','_lr_1e-6_tg_init++_em_1_iters','_lr_1e-7_tg_init++_em_1_iters']
 for name in names:
     results = []
     cp_file_name = fname_prefix+'{}.npy'.format(name)

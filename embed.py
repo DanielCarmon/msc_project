@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import pickle
 from nn import *
 from tqdm import tqdm
 import sys
@@ -424,11 +425,12 @@ class Vgg16Embedder(BaseEmbedder):
         return self.output
 
 class InceptionEmbedder(BaseEmbedder):
-    def __init__(self, weight_file=None, sess=None, embed_dim = 1001,output_layer='logits'):
+    def __init__(self, weight_file=None, sess=None, embed_dim = 1001,output_layer='logits',new_layer_width=-1):
         self.embed_dim = embed_dim
         self.weight_file = weight_file
         self.sess = sess
         self.pretrained = self.built = False
+        self.new_layer_width = new_layer_width
         self.saver = None
         self.params = []
         self.output_layer = output_layer
@@ -439,7 +441,6 @@ class InceptionEmbedder(BaseEmbedder):
         variable_averages = tf.train.ExponentialMovingAverage(inception.MOVING_AVERAGE_DECAY)
         variables_to_restore = variable_averages.variables_to_restore() # dictionary
         self.param_dict = variables_to_restore
-        import pickle
         f = open('keys{}'.format(str(for_training)),'w')
         pickle.dump(self.param_dict.keys(),f)
         self.params = [param for param in self.param_dict.values()]
@@ -455,6 +456,11 @@ class InceptionEmbedder(BaseEmbedder):
             print 'Please use one of these names:'
             print self.activations_dict.keys()
             exit()
+        if self.new_layer_width!=-1: #
+            initializer = tf.contrib.layers.xavier_initializer()
+            self.new_layer_w = tf.get_variable('new_layer_w',[self.embed_dim,self.new_layer_width],initializer=initializer)
+            self.output = tf.matmul(self.output,self.new_layer_w)
+            # TODO: make sure loading and initializing goes correctly
         return self.output
     def load_weights(self,sess):
         print 'start loading pre-trained weights'
