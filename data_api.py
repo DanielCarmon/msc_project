@@ -451,10 +451,10 @@ def get_bird_train_data2(data_dir,k,n,n_seen_classes=100,use_crop = False):
     loaded_data = [CUB_loaded_train_data[c-1] for c in classes]
     loaded_data = [np.random.permutation(class_data)[:n] for class_data in loaded_data] # take random subsample 
     class_szs = [class_data.shape[0] for class_data in loaded_data]
-    agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
-    ys = block_diag(*agreement_islands) # partition matrix
+    assignment_islands = [np.ones((sz,1)) for sz in class_szs]
+    ys_assignment = block_diag(*assignment_islands) # assignment matrix
     xs = np.concatenate(loaded_data,0)
-    return xs,ys
+    return xs,ys_assignment
 
 def get_train_batch(dataset_flag,k,n,use_crop=False):
     global loaded_train_data_list
@@ -476,6 +476,7 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
         pass
     train_classes_list = [range(1,101),range(1,99),range(1)]
     train_classes = train_classes_list[dataset_flag]
+    train_classes = range(1,5) # debug!!!
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
     if loaded_train_data_list[dataset_flag] is None:
@@ -484,14 +485,14 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
         if use_crop: version = '_cropped' # decide which data augmentation to use. crop+resize or just resize
         # loaded_train_data_list[dataset_flag] = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
         loaded_train_data_list[dataset_flag] = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in train_classes]
+    pdb.set_trace()
     loaded_data = [loaded_train_data_list[dataset_flag][c-1] for c in classes]
     loaded_data = [np.random.permutation(class_data)[:n_per_class] for class_data in loaded_data] # take random subsample 
     class_szs = [class_data.shape[0] for class_data in loaded_data]
-    agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
-    ys = block_diag(*agreement_islands) # partition matrix
+    assignment_islands = [np.ones((sz,1)) for sz in class_szs]
+    ys_assignment = block_diag(*assignment_islands) # assignment matrix
     xs = np.concatenate(loaded_data,0)
-    return xs,ys
-
+    return xs,ys_assignment
 def augment(data_dir,version=''):
     """ this should only be called once """
     for i in range(1,201):

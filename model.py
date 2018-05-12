@@ -28,7 +28,7 @@ class Model:
             self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
         self.x = tf.cast(self.x, tf.float32)
         #self.y = tf.placeholder(tf.float32, [self.n, self.n])
-        self.y = tf.placeholder(tf.float32, [None, None])
+        self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
         self.y = tf.cast(self.y, tf.float32)
         self.for_training = for_training
         self.x_embed = self.embedder.embed(self.x)
@@ -38,8 +38,7 @@ class Model:
         self.clusterer.set_data(self.x_embed)
         self.clustering = self.clusterer.infer_clustering()
 
-        self.loss = self.loss_func(self.clustering, self.y, use_tg)
-        # self.loss = self.stam(self.x_embed,self.y)
+        self.loss = self.L2_loss(self.clustering, self.y, use_tg)
         self.tf_grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.grads = filter((lambda x: x!=None),self.tf_grads) # remove None gradients from tf's batch norm params.
         # need to set only var_list params?
@@ -63,7 +62,7 @@ class Model:
             self.sess.run(tf.global_variables_initializer())
             self.embedder.load_weights(self.sess)
     @staticmethod
-    def loss_func(y_pred, y, use_tg):
+    def L2_loss(y_pred, y, use_tg):
         # y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)
         compare = y_pred[-1] # no trajectory gradient
         if use_tg: # trajectory gradient
@@ -72,6 +71,7 @@ class Model:
         normalize = tf.reduce_prod(tensor_shape) # num of entries
         # normalize = 1.
         # print 'gradient normalizing factor = ',normalize
+        y = tf.matmul(y,y,transpose_b=True)
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
 
     @staticmethod

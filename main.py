@@ -390,6 +390,7 @@ def run4(arg_dict):
             #    n_seen_classes+=10
             #    n_seen_classes = min(100,n_seen_classes)
             try:
+                print 'updating parameters'
                 for i in range(1):
                     #_,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
                     _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
