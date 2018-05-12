@@ -24,7 +24,7 @@ project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
 dataset_flag = 0
 use_deepset = False
-test_last = True
+test_last = False
 print 'Loading train data... '
 data = get_data(test_last,dataset_flag)
 if test_last:
@@ -93,7 +93,7 @@ def test(test_data,use_deepset=False):
 default_range_checkpoints = range(500) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 
-names = ['_lr_1e-4_tg_init++_em_1_iters','_lr_1e-5_tg_init++_em_1_iters','_lr_1e-6_tg_init++_em_1_iters','_lr_1e-7_tg_init++_em_1_iters']
+names = ['_lr_1e-5_tg_init++_em_1_iters','_lr_1e-6_tg_init++_em_1_iters','_lr_1e-7_tg_init++_em_1_iters']
 for name in names:
     results = []
     cp_file_name = fname_prefix+'{}.npy'.format(name)

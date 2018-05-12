@@ -80,12 +80,12 @@ class GDKMeansClusterer1(BaseClusterer):
         self.b = self.b - mu * grads  # update
         self.b = tf.Print(self.b, [self.b[0, 0], self.b[0, 1], self.b[0, 2], self.b[0, 3]], "After Update:")
         self.b = tf.Print(self.b, [""], "--------{}--------".format(str(self.curr_step)))
-        b_log = tf.nn.softmax(self.b, dim=1)  # from logits to distributions over clusters
+        b_log = tf.nn.softmax(self.b, axis=1)  # from logits to distributions over clusters
         self.history_list.append(b_log)  # log
 
     @staticmethod
     def obj_f(b, x):
-        b_probs = tf.nn.softmax(b, dim=1)
+        b_probs = tf.nn.softmax(b, axis=1)
         centroid_matrix = GDKMeansClusterer1.get_centroid_matrix(b_probs, x)
         for i in range(4):
             centroid_matrix = tf.Print(centroid_matrix, [centroid_matrix[i]], "centroid_{}:".format(str(i)))
@@ -251,7 +251,7 @@ class GDKMeansPlusPlus(BaseClusterer):
         means = tf.reduce_mean(dist_mat, 1)
         dist_mat_normed = dist_mat - means[:, None]
         bandwidth = 5
-        softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, dim=1)  # softmin
+        softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, axis=1)  # softmin
         D = softmin_mat * dist_mat  # elementwise
         D = tf.reduce_sum(D, 1)
         D = D / tf.reduce_sum(D)
@@ -488,7 +488,7 @@ class EMClusterer(BaseClusterer):
         z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
-        z = tf.nn.softmax(bandwidth*z, dim=1)
+        z = tf.nn.softmax(bandwidth*z, axis=1)
         check = tf.is_nan(tf.reduce_sum(z))
         #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z
