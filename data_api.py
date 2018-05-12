@@ -478,15 +478,13 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
     train_classes = train_classes_list[dataset_flag]
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
-    loaded_train_data = loaded_train_data_list[dataset_flag]
-    if loaded_train_data is None:
+    if loaded_train_data_list[dataset_flag] is None:
         print 'loading train data'
         version= ''
         if use_crop: version = '_cropped' # decide which data augmentation to use. crop+resize or just resize
-        # loaded_train_data = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
-        loaded_train_data = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in train_classes]
-    ## TODO: make loaded train data global var. so it won't be None at every iter
-    loaded_data = [loaded_train_data[c-1] for c in classes]
+        # loaded_train_data_list[dataset_flag] = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
+        loaded_train_data_list[dataset_flag] = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in train_classes]
+    loaded_data = [loaded_train_data_list[dataset_flag][c-1] for c in classes]
     loaded_data = [np.random.permutation(class_data)[:n_per_class] for class_data in loaded_data] # take random subsample 
     class_szs = [class_data.shape[0] for class_data in loaded_data]
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
