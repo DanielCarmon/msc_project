@@ -11,6 +11,13 @@ from cluster import *
 
 def nan_alarm(x):
     return tf.Print(x, [tf.is_nan(tf.reduce_sum(x))], "{} Nan?".format(x.name))
+def get_clustering_matrices(y_assign_history):
+    # args:
+    #   - y_assign_history: [n_iters,n,k] tensor, who's [i,:,:]th element is a membership matrix inferred at i'th step of inner-optimization process.
+    # output:
+    #   - y_partition_history: [n_iters,n,n] tensor, who's [i,:,:]th element is a clustering matrix corresponding to bs[i,:,:]
+    y_partition_history = tf.einsum('tij,tkj->tik', y_assign_history, y_assign_history)  # thanks einstein
+    return y_partition_history
 
 
 class Model:
@@ -63,7 +70,13 @@ class Model:
             self.embedder.load_weights(self.sess)
     @staticmethod
     def L2_loss(y_pred, y, use_tg):
-        # y = tf.Print(y,[tf.shape(y),tf.shape(y_pred),y,y_pred],"y:",summarize=100)
+        '''
+        args:
+            y_pred: [n_iters,n,k] tensor. history of soft assignments
+            y: [n,k] tensor. ground truth assignment
+            use_tg: bool. whether use trajectory ("aux") gradients or not
+        '''
+        y_pred = get_clustering_matrices(y_pred)
         compare = y_pred[-1] # no trajectory gradient
         if use_tg: # trajectory gradient
             compare = y_pred

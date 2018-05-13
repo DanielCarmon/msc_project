@@ -8,11 +8,11 @@ class BaseClusterer():
     def infer_clustering(self):
         for _ in tqdm(range(self.n_iters), desc="Building {} Layers".format(self.__class__.__name__)):
             self.update_params()
-        history_tensor = tf.convert_to_tensor(self.history_list)  # [n_iters,n,k] tensor of membership matrices
+        ys_assign_history = tf.convert_to_tensor(self.history_list)  # [n_iters,n,k] tensor of membership matrices
         # history_tensor = tf.Print(history_tensor,[0],"Finished Parameter Updates")
-        self.pred = self.get_clustering_matrices(history_tensor)  # [n_iters,n,n] tensor of similarity matrices
-        self.pred = tf.identity(self.pred, name="PredictionHistory")
-        return self.pred
+        #self.pred = self.get_clustering_matrices(history_tensor)  # [n_iters,n,n] tensor of similarity matrices
+        #self.pred = tf.identity(self.pred, name="PredictionHistory")
+        return ys_assign_history
 
     @staticmethod
     def get_clustering_matrices(history_tensor):
