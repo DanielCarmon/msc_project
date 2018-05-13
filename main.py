@@ -350,7 +350,8 @@ def run4(arg_dict):
         embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
     print 'building model object'
-    model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg = use_tg)
+    obj = arg_dict['obj']
+    model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj)
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     n_offset = 0 # no. of previous checkpoints
     try: # restore last ckpt
@@ -363,7 +364,14 @@ def run4(arg_dict):
             print 'Restoring parameters from',ckpt_path
             saver.restore(sess,ckpt_path)
             n_offset = n_last_ckpt+1
-    except: print 'no previous checkpoints found'
+            name = arg_dict['name']
+            nmi_score_history_prefix = np.load(project_dir+'train_nmis{}.npy'.format(name))
+            loss_history_prefix = np.load(project_dir+'train_losses{}.npy'.format(name))
+    except: 
+        print 'no previous checkpoints found'
+        nmi_score_history_prefix = []
+        loss_history_prefix = []
+
     def train(model,hyparams):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
@@ -380,15 +388,15 @@ def run4(arg_dict):
             feed_dict = {model.x: xs, model.y: ys}
             
             print 'at train step', i
-            
             if (i%i_log==0): # case where i==0 is baseline
                 name = arg_dict['name']
-                np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_score_history))
-                np.save(project_dir+'train_losses{}.npy'.format(name),np.array(loss_history))
+                print 'meow'
+                nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history
+                np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_2_save))
+                l2_2_save = list(loss_history_prefix)+loss_history
+                np.save(project_dir+'train_losses{}.npy'.format(name),np.array(l2_2_save))
                 saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i)) 
-            #if (i+1)%i_update_seen_classes == 0:
-            #    n_seen_classes+=10
-            #    n_seen_classes = min(100,n_seen_classes)
+                print 'woem'
             try:
                 print 'updating parameters'
                 for i in range(1):

@@ -19,11 +19,37 @@ def get_clustering_matrices(y_assign_history):
     y_partition_history = tf.einsum('tij,tkj->tik', y_assign_history, y_assign_history)  # thanks einstein
     return y_partition_history
 
+def my_entropy(p_vals):
+    ''' args: [k,] shaped tensor with positive entries that sum to 1. '''
+    nats = tf.log(p_vals)
+    logs = nats/tf.log(2.)
+    return -tf.reduce_sum(p_vals*logs)
+
+def my_nmi(y_assign_gt,y_assign_predict):
+    ''' args: two row-stochastic matrices of shape [n,k]'''
+    n = tf.reduce_sum(y_assign_gt) # row-stochastic with n rows...
+    # get probabilities from assignments:
+    eps = 1e-3
+    joint_prob_mat = tf.matmul(y_assign_gt,y_assign_predict,transpose_a=True)/n # [k,k]
+    p_vals1 = tf.reduce_sum(y_assign_gt,axis=0) + eps
+    p_vals1 = p_vals1/tf.reduce_sum(p_vals1) # normalize
+    p_vals2 = tf.reduce_sum(y_assign_predict,axis=0) + eps
+    p_vals2 = p_vals2/tf.reduce_sum(p_vals2) # normalize
+    p_vals_joint = tf.reshape(joint_prob_mat,[-1]) + eps
+    p_vals_joint = p_vals_joint/tf.reduce_sum(p_vals_joint) # normalize
+    # calculate entropies:
+    entropy1 = my_entropy(p_vals1)
+    entropy2 = my_entropy(p_vals2)
+    entropy_joint = my_entropy(p_vals_joint)
+    # use mutual info identity:
+    mutual_info = entropy1+entropy2-entropy_joint
+    # return normalized: 
+    return mutual_info/tf.sqrt(entropy1*entropy2)
 
 class Model:
     optimizer_class = tf.train.AdamOptimizer
     #optimizer_class = tf.train.GradientDescentOptimizer
-    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True):
+    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True,obj='L2'):
         self.sess = sess
         self.embedder = embedder
         self.clusterer = clusterer
@@ -44,8 +70,13 @@ class Model:
         self.optimizer = self.optimizer_class(lr)
         self.clusterer.set_data(self.x_embed)
         self.clustering = self.clusterer.infer_clustering()
-
-        self.loss = self.L2_loss(self.clustering, self.y, use_tg)
+        if obj=='L2':
+            self.loss = self.L2_loss(self.clustering, self.y, use_tg)
+        elif obj=='nmi':
+            self.loss = self.NMI_loss(self.clustering, self.y, use_tg)
+        else:
+            print 'Error: Unsupported objective "',obj,'"'
+            exit()
         self.tf_grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.grads = filter((lambda x: x!=None),self.tf_grads) # remove None gradients from tf's batch norm params.
         # need to set only var_list params?
@@ -86,7 +117,10 @@ class Model:
         # print 'gradient normalizing factor = ',normalize
         y = tf.matmul(y,y,transpose_b=True)
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
-
+    @staticmethod
+    def NMI_loss(y_pred,y,use_tg):
+        compare = y_pred[-1]# no support for tg yet
+        return -my_nmi(y,compare) # optimizer should minimize this
     @staticmethod
     def stam(x, y):
         return tf.reduce_sum(x)+tf.reduce_sum(y)

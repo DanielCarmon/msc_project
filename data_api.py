@@ -476,7 +476,6 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
         pass
     train_classes_list = [range(1,101),range(1,99),range(1)]
     train_classes = train_classes_list[dataset_flag]
-    train_classes = range(1,5) # debug!!!
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
     if loaded_train_data_list[dataset_flag] is None:
