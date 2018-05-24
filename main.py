@@ -326,10 +326,10 @@ def run4(arg_dict):
     k = 2
     if 'n_train_classes' in arg_dict.keys():
         k = arg_dict['n_train_classes']
-    n_gpu_can_handle = 100
+    dataset_flag = arg_dict['dataset']
+    n_gpu_can_handle = [100,100,80][dataset_flag]
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
-    dataset_flag = arg_dict['dataset']
     clst_module = arg_dict['cluster']
     hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
     model_lr = arg_dict['model_lr']
@@ -386,7 +386,6 @@ def run4(arg_dict):
         for i in range(n_offset,n_steps): 
             xs, ys = get_train_batch(dataset_flag,k,n)
             feed_dict = {model.x: xs, model.y: ys}
-            
             print 'at train step', i
             if (i%i_log==0): # case where i==0 is baseline
                 name = arg_dict['name']
@@ -444,14 +443,14 @@ def run4(arg_dict):
             print get_tb()
             pdb.set_trace()
     else:
-        hyparams[0] = 10**4
-        train_nmis,test_scores_e2e = train(model,hyparams)
+        print 'not training e2e'
     print 'starting last-layer training'
     # last-layer training (use this in case of overfitting):
     hyparams[0]=10**6
-    #filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
-    filter_cond = lambda x: ("aux_logits/FC/" in str(x))
+    filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
+    #filter_cond = lambda x: ("aux_logits/FC/" in str(x))
     last_layer_params = filter(filter_cond,embedder.params)
+    last_layer_params.append(embedder.new_layer_w)
     model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
     train_nmis,test_scores_ll = train(model,hyparams)
     save_path = embedder.save_weights(sess)

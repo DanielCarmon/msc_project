@@ -22,7 +22,7 @@ from sklearn.metrics import normalized_mutual_info_score as nmi
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
-dataset_flag = 0
+dataset_flag = 1
 use_deepset = False
 test_last = True
 print 'Loading train data... '
@@ -90,11 +90,12 @@ def test(test_data,use_deepset=False):
     result = nmi_score
     return result
 
-default_range_checkpoints = range(500) # might want to restore and test only a suffix of this
+default_range_checkpoints = range(800) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
+# please make sure that dataset_flag is set correctly
 
-names = ['_more_nmi_debug_tests']
 #names = ['_lr_1e-5_tg_init++_em_1_iters','_lr_1e-6_tg_init++_em_1_iters','_lr_1e-7_tg_init++_em_1_iters']
+names = ['_cars_lr_1e-5_tg_init++_em_1_iters']
 for name in names:
     results = []
     cp_file_name = fname_prefix+'{}.npy'.format(name)
@@ -104,7 +105,7 @@ for name in names:
         n_tests_already_made = len(to_append)
         range_checkpoints = default_range_checkpoints[n_tests_already_made:]
         print 'restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1]
-        #n_files = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
+        #n_files = len([name_ for name_ in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name_))])
         #n_existing_ckpts = (n_files-1)/3 
     except:
         range_checkpoints = default_range_checkpoints

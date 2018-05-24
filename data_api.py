@@ -466,15 +466,13 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
     k: num of classes in mini-batch
     n: num of datapoints in mini-batch
     '''
-    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products']
+    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data']
     
     data_dir = data_dirs[dataset_flag]
     n_per_class = int(n/k)
     if dataset_flag==0:
         return get_bird_train_data2(data_dir,k,n_per_class)
-    elif dataset_flag==1:
-        pass
-    train_classes_list = [range(1,101),range(1,99),range(1)]
+    train_classes_list = [range(1,101),range(1,99),range(1,512)]
     train_classes = train_classes_list[dataset_flag]
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
@@ -484,7 +482,6 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
         if use_crop: version = '_cropped' # decide which data augmentation to use. crop+resize or just resize
         # loaded_train_data_list[dataset_flag] = [np.load(data_dir+"/class"+str(i)+".npy") for i in train_classes]
         loaded_train_data_list[dataset_flag] = [np.load(data_dir+"/class"+str(i)+"{}.npy".format(version)) for i in train_classes]
-    pdb.set_trace()
     loaded_data = [loaded_train_data_list[dataset_flag][c-1] for c in classes]
     loaded_data = [np.random.permutation(class_data)[:n_per_class] for class_data in loaded_data] # take random subsample 
     class_szs = [class_data.shape[0] for class_data in loaded_data]
@@ -521,6 +518,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     which_data = str(inds[0])+"_to_"+str(inds[-1])
     which_dataset = data_dir.split('/')[-1]
     xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
+
     if augment: xs_name+='_augmented'
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
@@ -528,7 +526,9 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
         print 'creating xs variable'
         xs = np.memmap(xs_name,dtype='float32',mode='w+',shape=shape)
         loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
+        print 'finished loading. removing augmentation'
         loaded_data = [c[:len(c)/2] for c in loaded_data] # remove augmentation
+        print 'removed augmentation. concatenating'
         xs[...] = np.concatenate(loaded_data)
     agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
     ys = block_diag(*agreement_islands) # partition matrix
@@ -553,8 +553,8 @@ def get_data(split_flag,dataset_flag):
     '''
     ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
     data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products']
-    train_inds_list = [range(1,101),range(1,99),range(0,0)]
-    test_inds_list = [range(101,201),range(99,196),range(0,0)]
+    train_inds_list = [range(1,101),range(1,99),range(1,11319)]
+    test_inds_list = [range(101,201),range(99,196),range(11319,22635)]
     split_flag = int(split_flag)
     split_list = [train_inds_list,test_inds_list]
     inds = split_list[split_flag][dataset_flag]
