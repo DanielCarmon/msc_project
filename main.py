@@ -426,7 +426,7 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    hyparams = [10**6,k,n_,i_log]
+    hyparams = [300,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
@@ -435,7 +435,6 @@ def run4(arg_dict):
         model.train_step = model.optimizer.minimize(model.loss, var_list=deepset_params) # freeze inception weights
         train_nmis,test_scores = train(model,hyparams)
         print 'finished training'
-        pdb.set_trace()
     if arg_dict['train_params']!="last":
         try:
             train_nmis,test_scores_e2e = train(model,hyparams)
@@ -444,20 +443,18 @@ def run4(arg_dict):
             pdb.set_trace()
     else:
         print 'not training e2e'
-    print 'starting last-layer training'
-    # last-layer training (use this in case of overfitting):
-    hyparams[0]=10**6
-    filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
-    #filter_cond = lambda x: ("aux_logits/FC/" in str(x))
-    last_layer_params = filter(filter_cond,embedder.params)
-    last_layer_params.append(embedder.new_layer_w)
-    model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
-    train_nmis,test_scores_ll = train(model,hyparams)
+        print 'starting last-layer training'
+        # last-layer training (use this in case of overfitting):
+        hyparams[0]=500
+        filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
+        #filter_cond = lambda x: ("aux_logits/FC/" in str(x))
+        last_layer_params = filter(filter_cond,embedder.params)
+        last_layer_params.append(embedder.new_layer_w)
+        model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
+        train_nmis,test_scores_ll = train(model,hyparams)
     save_path = embedder.save_weights(sess)
     print 'end training' 
-    print 'e2e:',test_scores_e2e
-    print 'll:',test_scores_ll
-    return test_scores_e2e,test_scores_ll
+    return train_nmis
 def run5(dataset_flag=0,output_layer='logits'):
     """ test Inception baseline for clustering bird classes 101:200 """
     global sess
@@ -521,11 +518,6 @@ def run5(dataset_flag=0,output_layer='logits'):
     pdb.set_trace()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-config = tf.ConfigProto(allow_soft_placement=True)
-#config.log_device_placement = True
-#config.gpu_options.allow_growth=True
-print('Starting TF Session')
-sess = tf.InteractiveSession(config=config)
 if __name__ == "__main__":
     argv = sys.argv
     run = argv[1]
@@ -534,6 +526,11 @@ if __name__ == "__main__":
     if run=='4':
         if len(argv)>2:
             arg_dict = my_parser(argv)
+        gpu = arg_dict['gpu']
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+        config = tf.ConfigProto(allow_soft_placement=True)
+        print('Starting TF Session')
+        sess = tf.InteractiveSession(config=config)
         run4(arg_dict)
     if run=='5':
         dataset_flag=0
