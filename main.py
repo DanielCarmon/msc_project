@@ -426,7 +426,7 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    hyparams = [300,k,n_,i_log]
+    hyparams = [300*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
@@ -445,7 +445,7 @@ def run4(arg_dict):
         print 'not training e2e'
         print 'starting last-layer training'
         # last-layer training (use this in case of overfitting):
-        hyparams[0]=500
+        hyparams[0]=500*i_log
         filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
         #filter_cond = lambda x: ("aux_logits/FC/" in str(x))
         last_layer_params = filter(filter_cond,embedder.params)
