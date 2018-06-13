@@ -518,7 +518,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     which_data = str(inds[0])+"_to_"+str(inds[-1])
     which_dataset = data_dir.split('/')[-1]
     xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
-
+    xs_name = data_dir+'/'+xs_name
     if augment: xs_name+='_augmented'
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)

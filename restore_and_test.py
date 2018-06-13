@@ -12,26 +12,54 @@ import matplotlib.image as mpimg
 from tqdm import tqdm
 from datetime import datetime
 import pdb
-import sys
-import traceback
 import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 
+def as_bool(s):
+    if s=='False': return False
+    if s=='True': return True
+def my_parser(argv):
+    ret = {}
+    n = len(argv)
+    for i in range(n):
+        if argv[i][:2]=="--": # is flag
+            val = argv[i+1]
+            try:
+                val = int(val)
+            except:
+                try:
+                    val = float(val)
+                except:
+                    val = argv[i+1]
+            ret[argv[i][2:]]=val
+    return ret
+
+argv = sys.argv
+print 'tf version:',tf.__version__
+print 'tf file:',tf.__file__
+print 'python version:',sys.version_info 
+#exit()
+arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
-dataset_flag = 1
-use_deepset = False
-test_last = True
+dataset_flag = arg_dict['dataset']
+use_deepset = as_bool(arg_dict['deepset'])
+test_last = bool(arg_dict['data_split'])
 print 'Loading train data... '
 data = get_data(test_last,dataset_flag)
+
 if test_last:
-    fname_prefix = '101_to_200_scores'
+    fname_prefix = 'test_data_scores'
 else:
-    fname_prefix = '1_to_100_scores'
-sess = tf.InteractiveSession()
+    fname_prefix = 'train_data_scores'
+gpu = arg_dict['gpu']
+os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+config = tf.ConfigProto(allow_soft_placement=True)
+print('Starting TF Session')
+sess = tf.InteractiveSession(config=config)
 
 d = 299
 embed_dim = 1001
@@ -90,38 +118,33 @@ def test(test_data,use_deepset=False):
     result = nmi_score
     return result
 
-default_range_checkpoints = range(800) # might want to restore and test only a suffix of this
+default_range_checkpoints = range(500) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
-# please make sure that dataset_flag is set correctly
 
-#names = ['_lr_1e-5_tg_init++_em_1_iters','_lr_1e-6_tg_init++_em_1_iters','_lr_1e-7_tg_init++_em_1_iters']
-names = ['_cars_lr_1e-5_tg_init++_em_1_iters']
+names = [arg_dict['name']]
 for name in names:
     results = []
-    cp_file_name = fname_prefix+'{}.npy'.format(name)
+    cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
     DIR = project_dir+'/{}'.format(name)
     try: # load previous results, see what checkpoint was last restored and tested
         to_append = np.load(cp_file_name)[0]
         n_tests_already_made = len(to_append)
         range_checkpoints = default_range_checkpoints[n_tests_already_made:]
         print 'restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1]
-        #n_files = len([name_ for name_ in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name_))])
-        #n_existing_ckpts = (n_files-1)/3 
     except:
+        print 'no previous evaluations found. Evaluating from ckpt 0.'
         range_checkpoints = default_range_checkpoints
         to_append = []
     for i in range_checkpoints:
         print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
         ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
-        try:
-            #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
-            saver.restore(sess,ckpt_path)
-            result = test(data,use_deepset)
-            results.append(result)
-            np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
-            print 'checkpoint result:',result
-        except:
-            pass
+        if use_deepset: print 'WARNING: using deepset' 
+        #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
+        saver.restore(sess,ckpt_path)
+        result = test(data,use_deepset)
+        results.append(result)
+        np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
+        print 'checkpoint result:',result
     print '*'*50
     print 'results for {}:'.format(name),results
     print '*'*50

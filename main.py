@@ -5,7 +5,6 @@ from sklearn import cluster
 import traceback
 import sys
 from data_api import *
-# from model import Model
 from model import *
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
@@ -18,6 +17,7 @@ import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
+import numpy as np
 
 def save(obj,fname):
     pickle_out = open(fname+'.pickle','wb+')
@@ -46,8 +46,15 @@ def my_parser(argv):
                     val = argv[i+1]
             ret[argv[i][2:]]=val
     ret['deepset'] = as_bool(ret['deepset']) 
-    ret['use_tg'] = as_bool(ret['use_tg']) 
-     
+    #ret['use_tg'] = as_bool(ret['use_tg']) 
+    ret['use_tg'] = True
+    ret['init'] = 2
+    ret['obj'] = 'L2'
+    ret['cluster'] = 'em'
+    ret['cluster_hp'] = 1e-2
+    ret['train_params'] = 'e2e'
+    ret['restore_last'] = True
+    print 'using options:',ret
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
     if ret['cluster'] == "kmeans":
@@ -426,7 +433,7 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    hyparams = [300*i_log,k,n_,i_log]
+    hyparams = [500*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
@@ -452,7 +459,7 @@ def run4(arg_dict):
         last_layer_params.append(embedder.new_layer_w)
         model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
         train_nmis,test_scores_ll = train(model,hyparams)
-    save_path = embedder.save_weights(sess)
+    #save_path = embedder.save_weights(sess)
     print 'end training' 
     return train_nmis
 def run5(dataset_flag=0,output_layer='logits'):
@@ -519,18 +526,23 @@ def run5(dataset_flag=0,output_layer='logits'):
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 if __name__ == "__main__":
+    print 'start logginggggg'
     argv = sys.argv
     run = argv[1]
     if run=='3':
         run3()
     if run=='4':
+        os.system('echo 0>>bla.txt')
         if len(argv)>2:
             arg_dict = my_parser(argv)
+        os.system('echo 0>>bla.txt')
         gpu = arg_dict['gpu']
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+        os.system('echo 0>>bla.txt')
         config = tf.ConfigProto(allow_soft_placement=True)
         print('Starting TF Session')
         sess = tf.InteractiveSession(config=config)
+        os.system('echo 0>>bla.txt')
         run4(arg_dict)
     if run=='5':
         dataset_flag=0
@@ -552,7 +564,6 @@ tf.reset_default_graph()
 print train_nmis,test_nmis
 '''
 print 'finish'
-pdb.set_trace()
 """
 # plot approximately how good is each hypothesis.
 #from pylab import *
