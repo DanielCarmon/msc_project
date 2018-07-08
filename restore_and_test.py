@@ -118,33 +118,36 @@ def test(test_data,use_deepset=False):
     result = nmi_score
     return result
 
-default_range_checkpoints = range(500) # might want to restore and test only a suffix of this
+N = 1500
+default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 
-names = [arg_dict['name']]
-for name in names:
-    results = []
-    cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
-    DIR = project_dir+'/{}'.format(name)
-    try: # load previous results, see what checkpoint was last restored and tested
-        to_append = np.load(cp_file_name)[0]
-        n_tests_already_made = len(to_append)
+name = arg_dict['name']
+results = []
+cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
+DIR = project_dir+'/{}'.format(name)
+try: # load previous results, see what checkpoint was last restored and tested
+    to_append = np.load(cp_file_name)[0]
+    n_tests_already_made = len(to_append)
+    if n_tests_already_made == N:
+        print '{} evaluation completed'.format(name)
+    else:
         range_checkpoints = default_range_checkpoints[n_tests_already_made:]
         print 'restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1]
-    except:
-        print 'no previous evaluations found. Evaluating from ckpt 0.'
-        range_checkpoints = default_range_checkpoints
-        to_append = []
-    for i in range_checkpoints:
-        print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
-        ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
-        if use_deepset: print 'WARNING: using deepset' 
-        #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
-        saver.restore(sess,ckpt_path)
-        result = test(data,use_deepset)
-        results.append(result)
-        np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
-        print 'checkpoint result:',result
-    print '*'*50
-    print 'results for {}:'.format(name),results
-    print '*'*50
+except:
+    print 'no previous evaluations found. Evaluating from ckpt 0.'
+    range_checkpoints = default_range_checkpoints
+    to_append = []
+for i in range_checkpoints:
+    print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
+    ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
+    if use_deepset: print 'WARNING: using deepset' 
+    #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
+    saver.restore(sess,ckpt_path)
+    result = test(data,use_deepset)
+    results.append(result)
+    np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
+    print 'checkpoint result:',result
+print '*'*50
+print 'results for {}:'.format(name),results
+print '*'*50

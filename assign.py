@@ -28,7 +28,7 @@ class Worker():
         flags = ['--gpu {}'.format(self.gpu)]+['--{} {}'.format(key,job.d[key]) for key in job.d.keys()]
         cmd_suffix = ' '.join(flags)
         cmd = cmd_prefix+cmd_body+cmd_suffix
-        cmd += ' 2>> ~/log_{}.txt'.format(log_name)
+        cmd += ' &>> ~/log_{}.txt'.format(log_name)
         self.ps = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
     def terminate(self):
         try:
@@ -80,19 +80,25 @@ if __name__ == "__main__":
         print 'no available workers. try later or relax constraints'
         exit()
     print 'working...'
-    while len(active_workers)>0:
-        time.sleep(3)
-        idle_workers = []
+    try:
+        while len(active_workers)>0:
+            time.sleep(3)
+            idle_workers = []
+            for worker in active_workers:
+                response = worker.ps.poll() # remove zombie
+                if response != None: 
+                    print 'worker {} finished job: {}'.format(worker,worker.job)
+                    if not job_queue.empty(): # get next job from queue
+                        job = job_queue.get()
+                        print 'assigning job {} to worker {}'.format(job,worker)
+                        worker.do(job)
+                    else:
+                        idle_workers.append(worker)
+            for worker in idle_workers:
+                active_workers.discard(worker) # don't poll again if finished or not
+        print 'finished!'
+    except: # catches ctrl+c signal
+        print 'error occured. exiting work loop'
         for worker in active_workers:
-            response = worker.ps.poll() # remove zombie
-            if response != None: 
-                print 'worker {} finished job: {}'.format(worker,worker.job)
-                if not job_queue.empty(): # get next job from queue
-                    job = job_queue.get()
-                    print 'assigning job {} to worker {}'.format(job,worker)
-                    worker.do(job)
-                else:
-                    idle_workers.append(worker)
-        for worker in idle_workers:
-            active_workers.discard(worker) # don't poll again if finished or not
-    print 'finished!'
+            worker.terminate()
+        print 'exiting program'

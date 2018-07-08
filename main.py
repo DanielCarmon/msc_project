@@ -67,7 +67,7 @@ def linenum():
     """ Returns current line number """
     return inspect.currentframe().f_back.f_lineno
 def get_tb():
-    pdb.set_trace()
+    #pdb.set_trace()
     exc = sys.exc_info()
     return traceback.print_exception(*exc)
 
@@ -77,7 +77,7 @@ def trim(vec, digits=3):
     return vec
 
 
-# Experiments to test refactored model.py code
+# Experiments to test refractored model.py code
 # START
 # from pylab import *
 import matplotlib.pyplot as plt
@@ -416,7 +416,7 @@ def run4(arg_dict):
                 print 'error occured'
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
-                pdb.set_trace()
+                #pdb.set_trace()
             clustering = clustering_history[-1]
             # ys_pred = np.matmul(clustering,clustering.T)
             # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
@@ -433,7 +433,8 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    hyparams = [500*i_log,k,n_,i_log]
+    n_train_iters = 1500
+    hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
@@ -447,6 +448,7 @@ def run4(arg_dict):
             train_nmis,test_scores_e2e = train(model,hyparams)
         except:
             print get_tb()
+            exit()
             pdb.set_trace()
     else:
         print 'not training e2e'
