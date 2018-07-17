@@ -29,7 +29,11 @@ class Worker():
         cmd_suffix = ' '.join(flags)
         cmd = cmd_prefix+cmd_body+cmd_suffix
         cmd += ' &>> ~/log_{}.txt'.format(log_name)
+        print 'before ssh'
+        while True:
+            a=1
         self.ps = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
+        print 'after ssh'
     def terminate(self):
         try:
             pid = self.ps.pid

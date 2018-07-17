@@ -1,6 +1,11 @@
 import subprocess
 import pdb
+from dcdb import cp
+from inspect import currentframe, getframeinfo
+frameinfo = getframeinfo(currentframe())
+cp()
 f = open('workers.txt','a')
+print 'checkpoint',frameinfo.filename, frameinfo.lineno
 machine = subprocess.check_output("echo $HOST",stderr=subprocess.STDOUT,shell=True)
 column = subprocess.check_output("nvidia-smi | awk '{print $2}'",stderr=subprocess.STDOUT,shell=True)
 used = set([x for x in (column.split('GPU')[-1]).split('\n') if x!=''][1:])
