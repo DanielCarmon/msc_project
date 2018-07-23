@@ -1,5 +1,4 @@
 from inspect import currentframe, getframeinfo
-frameinfo = getframeinfo(currentframe())
 
 def cp():
     cf = currentframe()

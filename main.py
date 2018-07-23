@@ -12,6 +12,7 @@ from tqdm import tqdm
 from datetime import datetime
 import pdb
 import sys
+import time
 import traceback
 import inspect
 import pickle
@@ -416,6 +417,9 @@ def run4(arg_dict):
                 print 'error occured'
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
+                time.sleep(5)
+                print 'exiting main.py'
+                exit()
                 #pdb.set_trace()
             clustering = clustering_history[-1]
             # ys_pred = np.matmul(clustering,clustering.T)
