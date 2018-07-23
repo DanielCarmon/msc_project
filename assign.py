@@ -169,6 +169,7 @@ if __name__ == "__main__":
                 if response != None: 
                     print '{} finished {} with response {}'.format(worker,worker.job,response)
                     watcher.add_finished(worker.job)
+                    remove_zombie_watcher = worker.nvidia_watcher.poll()
                     if not job_queue.empty(): # get next job from queue
                         job = job_queue.get()
                         #print 'assigned {} to {}'.format(job,worker)
