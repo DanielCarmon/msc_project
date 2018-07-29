@@ -1,5 +1,8 @@
 import os
 import os.path
+os.environ["OMP_NUM_THREADS"] = "1"  
+os.environ["MKL_NUM_THREADS"] = "1"  
+os.environ["NUMEXPR_NUM_THREADS"] = "1"  
 import tensorflow as tf
 from sklearn import cluster
 import traceback
@@ -408,6 +411,9 @@ def run4(arg_dict):
                 print 'updating parameters'
                 for i in range(1):
                     #_,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
+                    print 'before embed'
+                    embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
+                    print 'after embed'
                     _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
                     #pdb.set_trace()
                     #old_params = param_dict
@@ -538,17 +544,13 @@ if __name__ == "__main__":
     if run=='3':
         run3()
     if run=='4':
-        os.system('echo 0>>bla.txt')
         if len(argv)>2:
             arg_dict = my_parser(argv)
-        os.system('echo 0>>bla.txt')
         gpu = arg_dict['gpu']
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-        os.system('echo 0>>bla.txt')
         config = tf.ConfigProto(allow_soft_placement=True)
         print('Starting TF Session')
         sess = tf.InteractiveSession(config=config)
-        os.system('echo 0>>bla.txt')
         run4(arg_dict)
     if run=='5':
         dataset_flag=0
