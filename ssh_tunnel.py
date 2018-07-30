@@ -128,7 +128,7 @@ class Channel(object):
         log.debug('Got bytes: %r' % bytes)
         self.data += bytes
         #os.system('echo "{}" >> ~/{} '.format(str(bytes),self.log_file))
-        os.system('echo "{}" >> {} '.format(str(bytes),self.log_file))
+        os.system('echo "{}" &>> {} '.format(str(bytes),self.log_file))
         os.system('sync')
         #log.debug(' Buffered: %r' % self.data)
 

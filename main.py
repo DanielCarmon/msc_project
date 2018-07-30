@@ -1,5 +1,6 @@
 import os
 import os.path
+#os.environ['TF_CPP_MIN_VLOG_LEVEL']='3'
 os.environ["OMP_NUM_THREADS"] = "1"  
 os.environ["MKL_NUM_THREADS"] = "1"  
 os.environ["NUMEXPR_NUM_THREADS"] = "1"  
@@ -9,6 +10,7 @@ import traceback
 import sys
 from data_api import *
 from model import *
+from dcdb import *
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 from tqdm import tqdm
@@ -338,7 +340,7 @@ def run4(arg_dict):
     if 'n_train_classes' in arg_dict.keys():
         k = arg_dict['n_train_classes']
     dataset_flag = arg_dict['dataset']
-    n_gpu_can_handle = [100,100,80][dataset_flag]
+    n_gpu_can_handle = [100,100,100][dataset_flag]
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
     clst_module = arg_dict['cluster']
@@ -354,7 +356,7 @@ def run4(arg_dict):
     embed_dim = 1001
     init = arg_dict['init']
     list_final_clusters = [100,98,512]
-    n_final_clusters = list_final_clusters[dataset_flag]
+    n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
     if arg_dict['deepset']:
         embedder_pointwise = embedder
@@ -410,14 +412,12 @@ def run4(arg_dict):
             try:
                 print 'updating parameters'
                 for i in range(1):
-                    #_,param_dict,activations_dict,clustering_history,clustering_diffs,loss = sess.run([step, embedder.param_dict,embedder.activations_dict,clusterer.history_list, clusterer.diff_history,model.loss], feed_dict=feed_dict)
-                    print 'before embed'
-                    embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
-                    print 'after embed'
-                    _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
                     #pdb.set_trace()
-                    #old_params = param_dict
-                    #old_activations = activations_dict
+                    #activations_tensors = sess.run(embedder.activations_dict,feed_dict=feed_dict)
+                    #print 'before embed'
+                    #embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
+                    #print 'after embed'
+                    _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
                 #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
             except:
                 print 'error occured'
@@ -425,7 +425,7 @@ def run4(arg_dict):
                 traceback.print_exception(*exc)
                 time.sleep(5)
                 print 'exiting main.py'
-                exit()
+                #exit()
                 #pdb.set_trace()
             clustering = clustering_history[-1]
             # ys_pred = np.matmul(clustering,clustering.T)
@@ -548,9 +548,10 @@ if __name__ == "__main__":
             arg_dict = my_parser(argv)
         gpu = arg_dict['gpu']
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-        config = tf.ConfigProto(allow_soft_placement=True)
+        #config = tf.ConfigProto(allow_soft_placement=True)
         print('Starting TF Session')
-        sess = tf.InteractiveSession(config=config)
+        #sess = tf.InteractiveSession(config=config)
+        sess = tf.InteractiveSession()
         run4(arg_dict)
     if run=='5':
         dataset_flag=0

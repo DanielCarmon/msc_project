@@ -77,16 +77,16 @@ class Model:
         else:
             print 'Error: Unsupported objective "',obj,'"'
             exit()
+        '''
         self.tf_grads = tf.gradients(self.loss, embedder.params)  # gradient
         self.grads = filter((lambda x: x!=None),self.tf_grads) # remove None gradients from tf's batch norm params.
-        # need to set only var_list params?
-
-        ##self.loss = tf.Print(self.loss, [self.loss], 'loss:')
-        #self.loss = tf.Print(self.loss, [self.grads],'grad')
-        #for i in range(1):
-        #    self.loss = tf.Print(self.loss,[self.grads[0]],'grad{}'.format(str(i)))
-        self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])  ], 'gradient:', summarize=100)
-
+        self.loss = tf.Print(self.loss,self.grads , 'gradient:', summarize=3)
+        #self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])  ], 'gradient:', summarize=3)
+        '''
+        self.grads = tf.gradients(self.loss, embedder.new_layer_w)  # gradient w.r.t last layer
+        self.loss = tf.Print(self.loss,self.grads , 'gradient:')
+        #self.loss = tf.Print(self.loss, [self.loss], 'loss:')
+        
         regularizer,beta = 0.,0.
         if regularize:
             for param in self.embedder.params:
