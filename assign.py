@@ -32,13 +32,14 @@ class Worker():
         cmd_body = 'python {}/{} '.format(project_dir,what_to_run)
         flags = ['--gpu {}'.format(self.gpu)]+['--{} {}'.format(key,job.d[key]) for key in job.d.keys()]
         cmd_flags = ' '.join(flags)
-        cmd_piping = ' &>> ~/log_{}.txt'.format(log_name)
+        cmd_piping = ' >>& {}/log_{}.txt'.format(project_dir,log_name)
         cmd = cmd_prefix+cmd_body+cmd_flags+cmd_piping
         
         '----------------'
         ssh_tunnel_cmd = 'python ssh_tunnel.py '
-        log_file = 'log_{}.txt'.format(log_name)
-        new_cmd = ssh_tunnel_cmd+' '.join([username,self.machine,'"'+cmd_body+cmd_flags+'"',log_file])
+        log_file = 'log_{}.txt'.format('debug_tunnel')
+        new_cmd = ssh_tunnel_cmd+' '.join([username,self.machine,'"'+cmd_body+cmd_flags+cmd_piping+'"',log_file])
+        #pdb.set_trace()
         self.ps = subprocess.Popen(new_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
         '----------------'
         watch_cmd = cmd_prefix+'python {}/nvidia_watcher.py {} {} {}'.format(project_dir,self.gpu,self.machine,str(self.ps.pid))
@@ -199,4 +200,5 @@ if __name__ == "__main__":
         print 'error occured. exiting work loop'
         for worker in active_workers: 
             worker.clear()
+            Watcher.rm(worker.ps.pid)
     print 'exiting program'

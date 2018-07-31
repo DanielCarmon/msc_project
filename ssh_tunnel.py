@@ -13,6 +13,7 @@ __email__ = 'jathan@gmail.com'
 __version__ = '0.2'
 
 from dcdb import *
+import time
 import logging
 import paramiko
 import re
@@ -129,7 +130,7 @@ class Channel(object):
         self.data += bytes
         #os.system('echo "{}" >> ~/{} '.format(str(bytes),self.log_file))
         os.system('echo "{}" &>> {} '.format(str(bytes),self.log_file))
-        os.system('sync')
+        #os.system('sync')
         #log.debug(' Buffered: %r' % self.data)
 
         # Check if the prompt pattern matches. Return None if it doesn't so the
@@ -199,6 +200,7 @@ class Channel(object):
 
 if __name__ == '__main__':
     argv = sys.argv
+    time.sleep(5)
     username = argv[1]
     host = argv[2]
     cmd = argv[3]

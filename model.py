@@ -8,7 +8,6 @@ from functools import reduce
 from embed import *
 from cluster import *
 
-
 def nan_alarm(x):
     return tf.Print(x, [tf.is_nan(tf.reduce_sum(x))], "{} Nan?".format(x.name))
 def get_clustering_matrices(y_assign_history):
@@ -48,7 +47,6 @@ def my_nmi(y_assign_gt,y_assign_predict):
 
 class Model:
     optimizer_class = tf.train.AdamOptimizer
-    #optimizer_class = tf.train.GradientDescentOptimizer
     def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True,obj='L2'):
         self.sess = sess
         self.embedder = embedder
@@ -83,7 +81,9 @@ class Model:
         self.loss = tf.Print(self.loss,self.grads , 'gradient:', summarize=3)
         #self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])  ], 'gradient:', summarize=3)
         '''
-        self.grads = tf.gradients(self.loss, embedder.new_layer_w)  # gradient w.r.t last layer
+        # maybe skip grad log? trying this now in gamir03. trying with last layer log in gamir-g01
+        #self.grads = tf.gradients(self.loss, embedder.new_layer_w)  # gradient w.r.t last layer
+        self.grads= [tf.constant(0)]
         self.loss = tf.Print(self.loss,self.grads , 'gradient:')
         #self.loss = tf.Print(self.loss, [self.loss], 'loss:')
         
