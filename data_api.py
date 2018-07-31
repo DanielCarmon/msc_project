@@ -466,13 +466,12 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
     k: num of classes in mini-batch
     n: num of datapoints in mini-batch
     '''
-    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data']
-    
+    data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data']    
     data_dir = data_dirs[dataset_flag]
     n_per_class = int(n/k)
     if dataset_flag==0:
         return get_bird_train_data2(data_dir,k,n_per_class)
-    train_classes_list = [range(1,101),range(1,99),range(1,512)]
+    train_classes_list = [range(1,101),range(1,99),range(1,513)]
     train_classes = train_classes_list[dataset_flag]
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
@@ -489,6 +488,7 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
     ys_assignment = block_diag(*assignment_islands) # assignment matrix
     xs = np.concatenate(loaded_data,0)
     return xs,ys_assignment
+
 def augment(data_dir,version=''):
     """ this should only be called once """
     for i in range(1,201):

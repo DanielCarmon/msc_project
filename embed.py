@@ -441,8 +441,6 @@ class InceptionEmbedder(BaseEmbedder):
         variable_averages = tf.train.ExponentialMovingAverage(inception.MOVING_AVERAGE_DECAY)
         variables_to_restore = variable_averages.variables_to_restore() # dictionary
         self.param_dict = variables_to_restore
-        f = open('keys{}'.format(str(for_training)),'w')
-        pickle.dump(self.param_dict.keys(),f)
         self.params = [param for param in self.param_dict.values()]
         # self.last_layer = tf.Variable(tf.random_normal([1001, self.embed_dim], stddev=0.1),
         #                              name="last_layer")
@@ -460,7 +458,6 @@ class InceptionEmbedder(BaseEmbedder):
             initializer = tf.contrib.layers.xavier_initializer()
             self.new_layer_w = tf.get_variable('new_layer_w',[self.embed_dim,self.new_layer_width],initializer=initializer)
             self.output = tf.matmul(self.output,self.new_layer_w)
-            # TODO: make sure loading and initializing goes correctly
         return self.output
     def load_weights(self,sess):
         print 'start loading pre-trained weights'

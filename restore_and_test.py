@@ -5,7 +5,6 @@ from sklearn import cluster
 import traceback
 import sys
 from data_api import *
-# from model import Model
 from model import *
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
@@ -40,7 +39,6 @@ argv = sys.argv
 print 'tf version:',tf.__version__
 print 'tf file:',tf.__file__
 print 'python version:',sys.version_info 
-#exit()
 arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
@@ -117,7 +115,7 @@ def test(test_data,use_deepset=False):
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
     return result
-
+pdb.set_trace()
 N = 3000
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
