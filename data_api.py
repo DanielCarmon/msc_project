@@ -520,6 +520,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
     xs_name = data_dir+'/'+xs_name
     if augment: xs_name+='_augmented'
+    pdb.set_trace()
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
     except:
@@ -552,11 +553,14 @@ def get_data(split_flag,dataset_flag):
         2: products
     '''
     ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
-    data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products']
-    train_inds_list = [range(1,101),range(1,99),range(1,11319)]
-    test_inds_list = [range(101,201),range(99,196),range(11319,22635)]
+    data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products/permuted_train_data']
+    train_inds_list = [range(1,101),range(1,99),range(1,513)]
+    test_inds_list = [range(101,201),range(99,196),None]
     split_flag = int(split_flag)
     split_list = [train_inds_list,test_inds_list]
     inds = split_list[split_flag][dataset_flag]
+    if inds==None: 
+        print 'unsupported split:',split_flag,dataset_flag
+        print 'for ebay test split, use "restore_and_test_ebay_total.py"'
     data_dir = data_dirs[dataset_flag]
     return load_specific_data(data_dir,inds)
