@@ -443,7 +443,7 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    n_train_iters = 3000
+    n_train_iters = 3500
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []

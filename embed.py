@@ -111,7 +111,6 @@ class ImgEmbedder(BaseEmbedder):
     """
     def embed(self, x):
         # encode pixel coordinates
-        pdb.set_trace()
         img_dim = self.img_dim
         inds = np.arange(0, img_dim)
         prefix0 = np.tile(inds, [img_dim])

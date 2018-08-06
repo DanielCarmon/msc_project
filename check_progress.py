@@ -11,7 +11,10 @@ for line in lines:
     path = project_dir+'/'+line.split("'")[-2]
     paths.append(path)
 for path in paths:
-    n_files = len([name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))])
+    try:
+        n_files = len([name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))])
+    except:
+        n_files=0
     n_ckpts = (n_files-1)/3
     path_suff = path.split('/')[-1]
     try: 

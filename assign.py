@@ -38,12 +38,11 @@ class Worker():
         '----------------'
         ssh_tunnel_cmd = 'python ssh_tunnel.py '
         log_file = 'log_{}.txt'.format('debug_tunnel')
-        new_cmd = ssh_tunnel_cmd+' '.join([username,self.machine,'"'+cmd_body+cmd_flags+cmd_piping+'"',log_file])
-        #pdb.set_trace()
+        cmd_at_host = '"'+cmd_body+cmd_flags+cmd_piping+'"'
+        new_cmd = ssh_tunnel_cmd+' '.join([username,self.machine,log_file,cmd_at_host])
         self.ps = subprocess.Popen(new_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
         '----------------'
         watch_cmd = cmd_prefix+'python {}/nvidia_watcher.py {} {} {}'.format(project_dir,self.gpu,self.machine,str(self.ps.pid))
-        #self.nvidia_watcher = subprocess.Popen(watch_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
         watch_cmd = shlex.split(watch_cmd) # tokenize
         self.nvidia_watcher = subprocess.Popen(watch_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     def kill_watch(self):

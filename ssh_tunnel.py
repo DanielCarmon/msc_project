@@ -105,15 +105,12 @@ class Channel(object):
                 # If we timeout or get an error, log it and carry on.
                 except (socket.timeout, socket.error) as err:
                     log.error(str(err))
-
             # If the socket has not received any data after we sent somethign,
             # disconnect.
             else:
                 break
-
         # The explicit call to disconnect
         shell.close()
-
         # And finally return the output of the results.
         return self.results
 
@@ -200,17 +197,11 @@ class Channel(object):
 
 if __name__ == '__main__':
     argv = sys.argv
-    time.sleep(5)
     username = argv[1]
     host = argv[2]
-    cmd = argv[3]
-    log_file = argv[4]
-    print 'logfile:',log_file,type(log_file)
+    log_file = argv[3]
+    commands = [' '.join(argv[4:])]
     prompt_pattern = r'\S+> $'
     init_commands = ['set cli scripting-mode on\n', 'set cli pager off\n']
-    commands = [cmd]
     c = Channel(host, commands,log_file ,prompt_pattern, init_commands)
     results = c.run()
-    #with open('~/log_main.txt','w') as log_file:
-    #    log_file.write(results)
-    #print results

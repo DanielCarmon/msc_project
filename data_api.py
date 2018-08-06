@@ -520,7 +520,6 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
     xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
     xs_name = data_dir+'/'+xs_name
     if augment: xs_name+='_augmented'
-    pdb.set_trace()
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
     except:

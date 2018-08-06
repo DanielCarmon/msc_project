@@ -1,8 +1,10 @@
 from inspect import currentframe, getframeinfo
 from sys import getsizeof
 import traceback, sys, code
+import datetime
 import time
 import math
+import os
 
 def cp():
     '''
@@ -10,6 +12,15 @@ def cp():
     '''
     cf = currentframe()
     print 'checkpoint. line: {}, file: {}'.format(cf.f_back.f_lineno,cf.f_back.f_code.co_filename)
+
+def echo_cp():
+    '''
+    like cp but instead echoes checkpoint info to '~/echo_cp.txt'
+    '''
+    cf = currentframe()
+    ckpt_info = 'checkpoint. line: {}, file: {}'.format(cf.f_back.f_lineno,cf.f_back.f_code.co_filename)+str(now())
+    os.system('echo {} >> ~/echo_cp.txt'.format(ckpt_info))
+
 
 def humanizeFileSize(filesize):
     filesize = abs(filesize)
@@ -23,6 +34,19 @@ def memsz(arr):
     returns memory usage of python array in human-readable format
     '''
     return humanizeFileSize(getsizeof(arr))
+
+def now():
+    return datetime.datetime.now()
+
+def tic():
+    global start
+    start = now()
+
+def toc():
+    elapsed = now() - start
+    min,secs=divmod(elapsed.days * 86400 + elapsed.seconds, 60)
+    hour, minutes = divmod(min, 60)
+    print 'elapsed: %.2d:%.2d:%.2d' % (hour,minutes,secs)
 
 
 def count_to(n):
