@@ -115,7 +115,7 @@ def test(test_data,use_deepset=False):
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
     return result
-N = 3000
+N = 3500
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 
