@@ -30,6 +30,7 @@ class BaseEmbedder:
         def new_embed(x):
             inner_embed = other.embed(x)
             other.out = inner_embed
+            pdb.set_trace()
             self.out = self.embed(inner_embed)
             ret.params = self.params + other.params # self: DeepSetEmbedder, other: InceptionEmbedder, ret: BaseEmbedder
             # the deepset embedder's params are constructed only at the line 'self.embed(inner_embed)'
@@ -48,6 +49,8 @@ class BaseEmbedder:
             ret.params = other.params
             ret.endpoints = other.endpoints
         except:
+            print 'problem'
+            exit()
             pass
         return ret
 

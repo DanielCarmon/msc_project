@@ -62,6 +62,7 @@ class Model:
         self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
         self.y = tf.cast(self.y, tf.float32)
         self.for_training = for_training
+        pdb.set_trace()
         self.x_embed = self.embedder.embed(self.x)
         ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
         self.lr = lr

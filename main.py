@@ -11,6 +11,7 @@ import sys
 from data_api import *
 from model import *
 from dcdb import *
+import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 from tqdm import tqdm
@@ -29,6 +30,7 @@ def save(obj,fname):
     pickle_out = open(fname+'.pickle','wb+')
     pickle.dump(obj,pickle_out)
     pickle_out.close()
+
 def as_bool(flag):
     if flag=='True':
         return True
@@ -72,8 +74,8 @@ def my_parser(argv):
 def linenum():
     """ Returns current line number """
     return inspect.currentframe().f_back.f_lineno
+
 def get_tb():
-    #pdb.set_trace()
     exc = sys.exc_info()
     return traceback.print_exception(*exc)
 
@@ -83,10 +85,6 @@ def trim(vec, digits=3):
     return vec
 
 
-# Experiments to test refractored model.py code
-# START
-# from pylab import *
-import matplotlib.pyplot as plt
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 rand = np.random.normal
 
@@ -109,7 +107,6 @@ def init1():
     # clusterer = EMClusterer([d**2,3],k+1,n_iters=50)
     tf_clustering = clusterer.infer_clustering()
 
-
 def run1():
     global embedder, clusterer, tf_clustering, data_params, k
     d = data_params[0]
@@ -117,7 +114,6 @@ def run1():
     x, y = xs[0], ys[0]  # (d,d,3) array , list of len==k
     bg = get_background_mask(y)
     bg_ = np.reshape(bg, (d ** 2, 1))
-    # pdb.set_trace()
     y_old = combine_masks(y)
     y = y_old + bg_ * bg_.T
     # x = 10*x
@@ -129,7 +125,6 @@ def run1():
     x_new = noisify(x_new)
     scatter_3d(x_new)
     # plt.show()
-    pdb.set_trace()
     # x_new = 30*x_new
     # x_new = noisify(x_new)
     # x_new = 10*x_new
@@ -147,7 +142,6 @@ def run1():
     last_membership = membership_history[-1]
     more = [last_membership, last_centroids, cost_history]
     plotup(clustering_history, x_new, y, more)
-
 
 def plotup(clustering, x, y, more):
     import matplotlib.animation as anim
@@ -171,7 +165,6 @@ def plotup(clustering, x, y, more):
     plt.title('ground truth clustering')
     ax = fig.add_subplot(2, 2, 4, projection='3d')
     # show 3d scatter of data vectors:
-    # pdb.set_trace()
     indices = np.argmax(last_membership, 1)
     # indices = np.array(indices)
     cs = ['r', 'b', 'g', 'k', 'c']
@@ -220,8 +213,7 @@ def plotup(clustering, x, y, more):
     try:
         plt.show()
     except AttributeError:
-        pdb.set_trace()
-    print 'meow2'
+        print 'meow2'
 
 
 def run2():
@@ -250,7 +242,6 @@ def run2():
     y3 = np.hstack((y3, np.zeros((1, n + n / 4))))
     y4 = np.hstack((np.zeros((1, 2 * n + 3 * n / 4)), np.ones((1, n + n / 4))))
     y = y1 * y1.T + y2 * y2.T + y3 * y3.T + y4 * y4.T
-    # pdb.set_trace()
 
     x1 = np.vstack((x1, x2))
     x2 = np.vstack((x3, x4))
@@ -271,9 +262,6 @@ def run2():
     plotup(clustering_history, x, y, cost_history)
     last_cluster = clustering_history[-1]
     last_membership = membership_history[-1]
-
-    pdb.set_trace()
-
 
 def run3():
     # check gradient flow through clusterers.
@@ -333,6 +321,7 @@ def run3():
     # scatter_3d()
     print 'last projection:', param_history[-1]
     """
+
 def run4(arg_dict):
     global embedder, clusterer, tf_clustering, data_params, k, sess
     d = 299
@@ -358,10 +347,12 @@ def run4(arg_dict):
     list_final_clusters = [100,98,512]
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
+    
     if arg_dict['deepset']:
         embedder_pointwise = embedder
-        embedder = DeepSetEmbedder1(embed_dim).compose(embedder_pointwise) # Under Construction!
+        embedder = DeepSetEmbedder1(n_final_clusters).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
+
     print 'building model object'
     obj = arg_dict['obj']
     model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj)
@@ -474,12 +465,12 @@ def run4(arg_dict):
     #save_path = embedder.save_weights(sess)
     print 'end training' 
     return train_nmis
+
 def run5(dataset_flag=0,output_layer='logits'):
     """ test Inception baseline for clustering bird classes 101:200 """
     global sess
     d = 299
     split_flag = 1
-    pdb.set_trace()
     data = get_data(split_flag,dataset_flag) 
     n = data[0].shape[0]
     xs,ys,ys_membership = data
@@ -513,7 +504,6 @@ def run5(dataset_flag=0,output_layer='logits'):
     #neuron_inds = range(2048)
     #subsampled_inds = np.random.choice(neuron_inds,n_clusters)
     #np_embeddings = np_embeddings[:,subsampled_inds]  # subsampling
-    pdb.set_trace()
     np_embeddings_normalized = l2_normalize(np_embeddings)
     n = np_embeddings.shape[0]
     from sklearn import cluster
@@ -534,7 +524,6 @@ def run5(dataset_flag=0,output_layer='logits'):
     scores = [nmi_score,nmi_score_normalized]
     pickle.dump(scores,f)
     print scores
-    pdb.set_trace()
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 if __name__ == "__main__":

@@ -1,13 +1,17 @@
+'''
+    this module is for defining NNs to be used as building blocks
+'''
 import tensorflow as tf
 import numpy as np
-
+import pdb
 
 class NN():
     pass
 
 class MLP(NN):
+
     def __init__(self,layer_widths,x=None,name='',initializer = tf.ones_initializer()):
-            
+        pdb.set_trace()    
         # args:
         # n_hidden: list of layer widths
         # x: TF tensor
@@ -18,6 +22,7 @@ class MLP(NN):
         self.params = []
         self.initializer = initializer
         self.build()
+    
     def build(self):
         activation = tf.nn.relu
         initializer = self.initializer
@@ -33,6 +38,7 @@ class MLP(NN):
             self.activations.append(self.out)
             self.out = tf.matmul(self.out,weight_matrix)
             #self.out = activation(self.out)
+    
     def output(self):
         return self.out
 

@@ -50,6 +50,7 @@ if test_last:
 else:
     fname_prefix = 'ebay_total_train_data_scores'
 split = 'test' if test_last else 'train'
+n_split = 59551 if split == 'train' else 60502
 img_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/'+split+'/'
 
 if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
@@ -80,10 +81,7 @@ if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
     name = arg_dict['name']
     weight_dir = project_dir+'/{}'.format(name)
     # get latest weight ckpt:
-    i=0
-    for filename in os.listdir(weight_dir):
-        i+=1
-        print filename
+    i = len(os.listdir(weight_dir))
     i_log = 100
     i_relevant = i_log*((i-1)/3-1)
     print i_relevant
@@ -98,34 +96,31 @@ if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
         feed_dict = {startpoint:xs_batch}
         return sess.run(endpoint,feed_dict=feed_dict)
 
-    output_dim = int(endpoint.shape[1].__str__()) # width of last layer in embedder
-    np_embeddings = np.zeros((0,output_dim)) # init embedding matrix
+    def get_batch_iter(arr,bsz):
+        i = 0
+        n = arr.shape[0]
+        while i*bsz<n:
+            yield arr[i*bsz:(i+1)*bsz]
+            i+=1
 
-    # load images batch by batch
-    max_bytes = 5000
-    tic()
-    batch_bytes = 0
-    img_batch = []
-    for filename in list(filter(lambda x: x[:5]=='class',os.listdir(img_dir))):    
-       print 'at',filename 
-       class_imgs = np.load(img_dir+filename)
-       class_imgs = class_imgs[:class_imgs.shape[0]/2]
-       img_batch.append(class_imgs)
-       sz = sys.getsizeof(img_batch)
-       batch_bytes+=sz
-       #print memsz(img_batch),sz
-       if batch_bytes > max_bytes:
-           print 'embedding...'
-           toc()
-           tic()
-           batch_array = np.concatenate(img_batch)
-           tmp_embedding = get_embedding(batch_array,startpoint,endpoint) 
-           np_embeddings = np.vstack((np_embeddings,tmp_embedding))
-           img_batch = []
-           batch_bytes=0
-    toc()
+    output_dim = int(endpoint.shape[1].__str__()) # width of last layer in embedder
+
+    embedding_list = []
+    n_gpu_can_handle = 500 # tested on 12GiB gpu
+    shape = (n_split,299,299,3)
+    imgs = np.memmap(filename,dtype='float32',mode='r+',shape=shape)
+    batch_iter = get_batch_iter(imgs,n_gpu_can_handle)
+    # todo: check this works...
+    while True:
+        try:
+            batch = batch_iter.next()
+            tmp_embedding = get_embedding(batch,startpoint,endpoint) 
+            pdb.set_trace()
+            embedding_list.append(tmp_embedding)
+        except StopIteration:
+            break
+    np_embeddings = np.concatenate(embedding_list)
     np.save(split+'_embeddings.npy',np_embeddings)
-    pdb.set_trace()
     if use_deepset:
         global deepset_startpoint,deepset_endpoint
         print 'before ds module:',np_embeddings
@@ -133,7 +128,6 @@ if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
         np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
         print 'after ds module:',np_embeddings
 
-    #print 'Embedded data to:',path_to_embed_mat
 else: # we use cpu to cluster embedding matrix
     np_embeddings = np.load(split+'_embeddings.npy')
     class_szs = pickle.load(open(img_dir+'lengths.pickle'))
@@ -141,6 +135,7 @@ else: # we use cpu to cluster embedding matrix
     ys_membership = block_diag(*membership_islands) # membership matrix
     n_clusters = ys_membership.shape[1]
     print 'lets fit'
+    pdb.set_trace()
     tic()
     km = cluster.KMeans(n_clusters=n_clusters,verbose=1).fit(np_embeddings)
     toc()
