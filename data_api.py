@@ -475,6 +475,7 @@ def get_train_batch(dataset_flag,k,n,use_crop=False):
     train_classes = train_classes_list[dataset_flag]
     perm = np.random.permutation(train_classes)
     classes = perm[range(k)]
+    pdb.set_trace()
     if loaded_train_data_list[dataset_flag] is None:
         print 'loading train data'
         version= ''

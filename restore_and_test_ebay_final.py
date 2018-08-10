@@ -52,6 +52,14 @@ else:
 split = 'test' if test_last else 'train'
 n_split = 59551 if split == 'train' else 60502
 img_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/'+split+'/'
+name = arg_dict['name']
+# load proper weights: latest available
+weight_dir = project_dir+'/{}'.format(name)
+# get latest weight ckpt:
+i = len(os.listdir(weight_dir))
+i_log = 100
+i_relevant = i_log*((i-1)/3-1)
+print i_relevant
 
 if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
     gpu = arg_dict['gpu']
@@ -77,15 +85,7 @@ if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
     sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver(tf.global_variables())
 
-    # load proper weights: latest available
-    name = arg_dict['name']
-    weight_dir = project_dir+'/{}'.format(name)
-    # get latest weight ckpt:
-    i = len(os.listdir(weight_dir))
-    i_log = 100
-    i_relevant = i_log*((i-1)/3-1)
-    print i_relevant
-    print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i_relevant,str(test_last))
+    print 'embedding ebay products with {}, checkpoint #{}. test split?{}'.format(name,i_relevant,str(test_last))
     ckpt_path = weight_dir+'/step_{}'.format(i_relevant)+'.ckpt'
     if use_deepset: print 'WARNING: using deepset' 
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
@@ -108,14 +108,12 @@ if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
     embedding_list = []
     n_gpu_can_handle = 500 # tested on 12GiB gpu
     shape = (n_split,299,299,3)
-    imgs = np.memmap(filename,dtype='float32',mode='r+',shape=shape)
+    imgs = np.memmap(img_dir+'memmap',dtype='float32',mode='r+',shape=shape)
     batch_iter = get_batch_iter(imgs,n_gpu_can_handle)
-    # todo: check this works...
     while True:
         try:
             batch = batch_iter.next()
             tmp_embedding = get_embedding(batch,startpoint,endpoint) 
-            pdb.set_trace()
             embedding_list.append(tmp_embedding)
         except StopIteration:
             break
@@ -129,13 +127,13 @@ if arg_dict['embed']: # we use gpu machine to embed the data to a [N,512] array
         print 'after ds module:',np_embeddings
 
 else: # we use cpu to cluster embedding matrix
+    print 'clustering ebay products with {}, checkpoint #{}. test split?{}'.format(name,i_relevant,str(test_last))
     np_embeddings = np.load(split+'_embeddings.npy')
     class_szs = pickle.load(open(img_dir+'lengths.pickle'))
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
     n_clusters = ys_membership.shape[1]
     print 'lets fit'
-    pdb.set_trace()
     tic()
     km = cluster.KMeans(n_clusters=n_clusters,verbose=1).fit(np_embeddings)
     toc()

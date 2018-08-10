@@ -11,7 +11,6 @@ class NN():
 class MLP(NN):
 
     def __init__(self,layer_widths,x=None,name='',initializer = tf.ones_initializer()):
-        pdb.set_trace()    
         # args:
         # n_hidden: list of layer widths
         # x: TF tensor

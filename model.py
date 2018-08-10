@@ -47,7 +47,7 @@ def my_nmi(y_assign_gt,y_assign_predict):
 
 class Model:
     optimizer_class = tf.train.AdamOptimizer
-    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True,obj='L2'):
+    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True,obj='L2',log_grads=False):
         self.sess = sess
         self.embedder = embedder
         self.clusterer = clusterer
@@ -62,7 +62,6 @@ class Model:
         self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
         self.y = tf.cast(self.y, tf.float32)
         self.for_training = for_training
-        pdb.set_trace()
         self.x_embed = self.embedder.embed(self.x)
         ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
         self.lr = lr
@@ -78,14 +77,15 @@ class Model:
             exit()
         '''
         self.tf_grads = tf.gradients(self.loss, embedder.params)  # gradient
-        self.grads = filter((lambda x: x!=None),self.tf_grads) # remove None gradients from tf's batch norm params.
         self.loss = tf.Print(self.loss,self.grads , 'gradient:', summarize=3)
         #self.loss = tf.Print(self.loss, [tf.reduce_max([tf.reduce_max(tf.abs(grad)) for grad in self.grads])  ], 'gradient:', summarize=3)
         '''
-        # maybe skip grad log? trying this now in gamir03. trying with last layer log in gamir-g01
-        #self.grads = tf.gradients(self.loss, embedder.new_layer_w)  # gradient w.r.t last layer
-        self.grads= [tf.constant(0)]
-        self.loss = tf.Print(self.loss,self.grads , 'gradient:')
+        if log_grads:
+            self.pre_grads = tf.gradients(self.loss, embedder.params) 
+            self.grads = filter((lambda x: x!=None),self.pre_grads) # remove None gradients from tf's batch norm params.
+            self.loss = tf.Print(self.loss,self.grads , 'gradient:')
+        else: 
+            self.loss = tf.Print(self.loss,[self.loss], 'loss:')
         #self.loss = tf.Print(self.loss, [self.loss], 'loss:')
         
         regularizer,beta = 0.,0.

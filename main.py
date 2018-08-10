@@ -347,15 +347,16 @@ def run4(arg_dict):
     list_final_clusters = [100,98,512]
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
-    
+   
     if arg_dict['deepset']:
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(n_final_clusters).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
 
     print 'building model object'
+    log_grads = False
     obj = arg_dict['obj']
-    model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj)
+    model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads)
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     n_offset = 0 # no. of previous checkpoints
     try: # restore last ckpt
@@ -386,7 +387,6 @@ def run4(arg_dict):
         nmi_score_history = []
         step = model.train_step
 
-        debug = False
         for i in range(n_offset,n_steps): 
             xs, ys = get_train_batch(dataset_flag,k,n)
             feed_dict = {model.x: xs, model.y: ys}
@@ -402,31 +402,25 @@ def run4(arg_dict):
                 print 'woem'
             try:
                 print 'updating parameters'
-                for i in range(1):
-                    #pdb.set_trace()
-                    #activations_tensors = sess.run(embedder.activations_dict,feed_dict=feed_dict)
-                    #print 'before embed'
-                    #embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
-                    #print 'after embed'
-                    _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
-                #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
+                #pdb.set_trace()
+                #activations_tensors = sess.run(embedder.activations_dict,feed_dict=feed_dict)
+                #print 'before embed'
+                #embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
+                #print 'after embed'
+                _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
+            #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
+                clustering = clustering_history[-1]
+                # ys_pred = np.matmul(clustering,clustering.T)
+                # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
+                nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
+                print 'after: ',nmi_score
+                nmi_score_history.append(nmi_score)
+                loss_history.append(loss)
+                print "clustring diffs:",clustering_diffs
             except:
                 print 'error occured'
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
-                time.sleep(5)
-                print 'exiting main.py'
-                #exit()
-                #pdb.set_trace()
-            clustering = clustering_history[-1]
-            # ys_pred = np.matmul(clustering,clustering.T)
-            # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
-            nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-            print 'after: ',nmi_score
-            nmi_score_history.append(nmi_score)
-            loss_history.append(loss)
-            print "clustring diffs:",clustering_diffs
-            if debug: 
                 pdb.set_trace()
         print 'train_nmis:',nmi_score_history
         return nmi_score_history,test_scores
@@ -434,13 +428,15 @@ def run4(arg_dict):
     print 'begin training'
     # end-to-end training:
     i_log = 100 
-    n_train_iters = 3500
+    n_train_iters = 4500
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['deepset']:
-        filter_cond = lambda x: 'DeepSet' in str(x)
+        filter_cond = lambda v: 'DeepSet' in str(v)
         deepset_params = filter(filter_cond,tf.global_variables())
+        print 'deepset_params:'
+        print deepset_params
         model.train_step = model.optimizer.minimize(model.loss, var_list=deepset_params) # freeze inception weights
         train_nmis,test_scores = train(model,hyparams)
         print 'finished training'
