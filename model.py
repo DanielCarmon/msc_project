@@ -85,6 +85,7 @@ class Model:
             self.grads = filter((lambda x: x!=None),self.pre_grads) # remove None gradients from tf's batch norm params.
             self.loss = tf.Print(self.loss,self.grads , 'gradient:')
         else: 
+            self.grads = tf.constant(-1)
             self.loss = tf.Print(self.loss,[self.loss], 'loss:')
         #self.loss = tf.Print(self.loss, [self.loss], 'loss:')
         
@@ -95,6 +96,7 @@ class Model:
                 regularizer += tf.nn.l2_loss(param)
         self.loss = beta*regularizer + self.loss
         self.loss = 1.*self.loss
+        print 'building optimizer'
         self.train_step = self.optimizer.minimize(self.loss)
         if not isinstance(embedder,ProjectionEmbedder):
             print 'initializing global variables'

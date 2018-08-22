@@ -10,6 +10,7 @@ paths = []
 for line in lines:
     path = project_dir+'/'+line.split("'")[-2]
     paths.append(path)
+print 'checking progress for jobs in ',fname
 for path in paths:
     try:
         n_files = len([name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))])

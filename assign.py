@@ -25,7 +25,7 @@ class Worker():
         return self.string
     def do(self,job):
         self.job = job
-        what_to_run = 'restore_and_test.py' if job.test else 'main.py 4'
+        what_to_run = 'restore_and_test.py' if job.test else 'main.py '
         log_name = 'test' if job.test else 'main'
 
         cmd_prefix = 'ssh {}@{} '.format(username,self.machine)

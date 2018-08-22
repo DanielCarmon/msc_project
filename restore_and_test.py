@@ -36,23 +36,18 @@ def my_parser(argv):
     return ret
 
 argv = sys.argv
-print 'tf version:',tf.__version__
-print 'tf file:',tf.__file__
-print 'python version:',sys.version_info 
 arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
 dataset_flag = arg_dict['dataset']
 use_deepset = as_bool(arg_dict['deepset'])
-test_last = bool(arg_dict['data_split'])
+data_split = int(arg_dict['data_split'])
 print 'Loading train data... '
-data = get_data(test_last,dataset_flag)
+data = get_data(data_split,dataset_flag)
 
-if test_last:
-    fname_prefix = 'test_data_scores'
-else:
-    fname_prefix = 'train_data_scores'
+split_name = ['train','test','valid'][data_split]
+fname_prefix = split_name+'_data_scores'
 gpu = arg_dict['gpu']
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 config = tf.ConfigProto(allow_soft_placement=True)
@@ -61,7 +56,7 @@ sess = tf.InteractiveSession(config=config)
 
 d = 299
 embed_dim = 1001
-list_final_clusters = [100,98,512]
+list_final_clusters = [100,98,512,102]
 n_final_clusters = list_final_clusters[dataset_flag]
 embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
@@ -69,9 +64,9 @@ endpoint = embedder.embed(startpoint)
 
 if use_deepset:
     embedder_pointwise = embedder
-    embedder = DeepSetEmbedder1(embed_dim)
+    embedder = DeepSetEmbedder1(n_final_clusters)
     n = data[0].shape[0]
-    shape = [n,embed_dim]
+    shape = [n,n_final_clusters]
     deepset_startpoint = tf.placeholder(tf.float32,shape=shape) 
     deepset_endpoint = embedder.embed(deepset_startpoint)
 
@@ -86,20 +81,33 @@ def test(test_data,use_deepset=False):
     n_test = test_xs.shape[0]
     n_clusters = test_ys_membership.shape[1]
     # 1) embed batch by batch
+    def get_batch_iter(arr,bsz):
+        i = 0
+        n = arr.shape[0]
+        while bsz*i<n:
+            yield arr[bsz*i:bsz*(i+1)]
+            i+=1
+
     def get_embedding(xs_batch,startpoint,endpoint):
         feed_dict = {startpoint:xs_batch}
         return sess.run(endpoint,feed_dict=feed_dict)
     output_dim = int(endpoint.shape[1].__str__()) # width of last layer in embedder
-    np_embeddings = np.zeros((0,output_dim))
     
     i=0
-    n_batch = 400
-    while n_batch*i<n_test:
-        xs_batch = test_xs[n_batch*i:n_batch*(i+1)]       
-        print 'embedding batch ',i
-        embedded_xs_batch = get_embedding(xs_batch,startpoint,endpoint)
-        np_embeddings = np.vstack((np_embeddings,embedded_xs_batch))
-        i+=1
+    n_gpu_can_handle = 500
+    batch_iter = get_batch_iter(test_xs,n_gpu_can_handle)
+    embedding_list = []
+    while True:
+        try:
+            xs_batch = batch_iter.next()       
+            print 'embedding batch ',i
+            embedded_xs_batch = get_embedding(xs_batch,startpoint,endpoint)
+            embedding_list.append(embedded_xs_batch)
+            i+=1
+        except:
+            print 'finished inception embedding'
+            np_embeddings = np.concatenate(embedding_list)
+            break
     if use_deepset:
         global deepset_startpoint,deepset_endpoint
         print 'before ds module:',np_embeddings
@@ -107,7 +115,9 @@ def test(test_data,use_deepset=False):
         np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
         print 'after ds module:',np_embeddings
     # 2) cluster
+    print 'clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...'
     km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
+    print 'finished clustering'
     labels = km.labels_
     #labels_normalized = km_normalized.labels_
     nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
@@ -115,10 +125,10 @@ def test(test_data,use_deepset=False):
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
     return result
-N = 3500
+    
+N = 4500
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
-
 name = arg_dict['name']
 results = []
 cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
@@ -136,7 +146,7 @@ except:
     range_checkpoints = default_range_checkpoints
     to_append = []
 for i in range_checkpoints:
-    print 'testing for {}, checkpoint #{}. test split?{}'.format(name,i,str(test_last))
+    print 'testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(data_split))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_deepset: print 'WARNING: using deepset' 
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.

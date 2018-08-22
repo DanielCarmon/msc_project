@@ -9,7 +9,7 @@ total = set([str(i) for i in range(4)])
 free = list(total.difference(used))
 f = open('workers.txt','a')
 if (machine[:1]=='r'): # don't overload rack machines
-    margin = 2
+    margin = 4
     current_load = len(used)
     margin_load = margin-current_load
     free = free[:max(0,margin_load)]
