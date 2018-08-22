@@ -16,7 +16,7 @@ import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
-from dcdb import *
+from control.dcdb import *
 
 def as_bool(s):
     if s=='False': return False

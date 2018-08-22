@@ -11,7 +11,7 @@ import traceback
 import sys
 from data_api import *
 from model import *
-from dcdb import *
+from control.dcdb import *
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
@@ -233,7 +233,7 @@ def run(arg_dict):
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 if __name__ == "__main__":
-    print 'entered main:',datetime.now()
+    print 'entered main:',now()
     argv = sys.argv
     arg_dict = my_parser(argv)
     gpu = arg_dict['gpu']
