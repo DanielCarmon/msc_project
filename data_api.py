@@ -1,4 +1,5 @@
 from inspect import currentframe, getframeinfo
+import SharedArray
 import pickle
 import signal
 import time
@@ -223,8 +224,12 @@ def get_szs_and_offsets(batch_classes,dataset_flag):
 
 def init_train_data(dataset_flag):
     global train_data,fixed_ys
-    train_data_dir = train_data_dirs[dataset_flag]
-    train_data = np.load(train_data_dir+'/train_data.npy')
+    try:
+        train_data = sa.attach('shm://train_data{}.npy'.format(dataset_flag))
+    except:
+        train_data_dir = train_data_dirs[dataset_flag]
+        train_data = np.load(train_data_dir+'/train_data.npy')
+
 
 def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False):
     global fixed_ys

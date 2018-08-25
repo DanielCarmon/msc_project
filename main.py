@@ -27,6 +27,22 @@ from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 import numpy as np
 
+
+project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
+logfile_path = project_dir+'/log_main.txt'
+
+def log_print(*msg):
+    with open(logfile_path,'a+') as logfile:
+        msg = [str(m) for m in msg]
+        logfile.write(' '.join(msg))
+        logfile.write('\n')
+log_print('bzzzz')
+
+data_params = None
+k = None
+embedder = None
+clusterer = None
+tf_clustering = None
 def save(obj,fname):
     pickle_out = open(fname+'.pickle','wb+')
     pickle.dump(obj,pickle_out)
@@ -37,7 +53,7 @@ def as_bool(flag):
         return True
     elif flag=='False':
         return False
-    print 'Error at parsing occured'
+    log_print('Error at parsing occured')
     pdb.set_trace()
 
 def my_parser(argv):
@@ -64,7 +80,7 @@ def my_parser(argv):
     if not 'train_params' in ret.keys():
         ret['train_params'] = 'e2e'
     ret['restore_last'] = True
-    print 'using options:',ret
+    log_print('using options:',ret)
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
     if ret['cluster'] == "kmeans":
@@ -87,13 +103,6 @@ def trim(vec, digits=3):
     return vec
 
 
-project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
-
-data_params = None
-k = None
-embedder = None
-clusterer = None
-tf_clustering = None
 
 def run(arg_dict):
     global embedder, clusterer, tf_clustering, data_params, k, sess
@@ -103,9 +112,9 @@ def run(arg_dict):
         k = arg_dict['n_train_classes']
     name = arg_dict['name']
     dataset_flag = arg_dict['dataset']
-    print 'loading data...'
+    log_print(now(),': loading data for',name,'...')
     init_train_data(dataset_flag)
-    print 'done'
+    log_print('done')
     n_gpu_can_handle = 100
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
@@ -131,7 +140,7 @@ def run(arg_dict):
         embedder = DeepSetEmbedder1(n_final_clusters).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
 
-    print 'building model object'
+    log_print(now(),': building model for',name)
     log_grads = False
     obj = arg_dict['obj']
     model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads)
@@ -145,12 +154,12 @@ def run(arg_dict):
             last_n = max(ns)
             ckpt_path = ckpt_path+'/step_'+str(last_n)+'.ckpt'
             n_offset = last_n+1
-            print 'Restoring parameters from',ckpt_path
+            log_print('Restoring parameters from',ckpt_path)
             saver.restore(sess,ckpt_path)
             nmi_score_history_prefix = np.load(project_dir+'train_nmis{}.npy'.format(name))
             loss_history_prefix = np.load(project_dir+'train_losses{}.npy'.format(name))
     except: 
-        print 'no previous checkpoints found'
+        log_print(now(),': no previous checkpoints found for',name)
         nmi_score_history_prefix = []
         loss_history_prefix = []
 
@@ -168,39 +177,39 @@ def run(arg_dict):
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys)
             feed_dict = {model.x: xs, model.y: ys}
             if (i%i_log==0): # case where i==0 is baseline
-                print 'meow'
+                log_print(now(),': start ',i,'ckpt save for',name)
                 nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_2_save))
                 l2_2_save = list(loss_history_prefix)+loss_history
                 np.save(project_dir+'train_losses{}.npy'.format(name),np.array(l2_2_save))
                 saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i)) 
-                print 'woem'
+                log_print(now(),': finish ',i,'ckpt save for',name)
             try:
-                print now(),': train iter',i,' for',name
+                log_print(now(),': train iter',i,'for',name)
                 #pdb.set_trace()
                 #activations_tensors = sess.run(embedder.activations_dict,feed_dict=feed_dict)
-                #print 'before embed'
+                #log_print('before embed')
                 #embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
-                #print 'after embed'
+                #log_print('after embed')
                 _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
             #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
                 clustering = clustering_history[-1]
                 # ys_pred = np.matmul(clustering,clustering.T)
                 # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
                 nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-                print 'after: ',nmi_score
+                log_print('after: ',nmi_score)
                 nmi_score_history.append(nmi_score)
                 loss_history.append(loss)
-                print "clustring diffs:",clustering_diffs
+                log_print("clustring diffs:",clustering_diffs)
             except:
-                print 'error occured'
+                log_print('error occured')
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
                 pdb.set_trace()
-        print 'train_nmis:',nmi_score_history
+        log_print('train_nmis:',nmi_score_history)
         return nmi_score_history,test_scores
 
-    print 'begin training'
+    log_print('begin training')
     # end-to-end training:
     i_log = 100 
     n_train_iters = 4500
@@ -215,8 +224,8 @@ def run(arg_dict):
             exit()
             pdb.set_trace()
     else:
-        print 'not training e2e'
-        print 'starting last-layer training'
+        log_print('not training e2e')
+        log_print('starting last-layer training')
         if arg_dict['deepset']:
             filter_cond = lambda v: 'DeepSet' in str(v)
         else:
@@ -227,19 +236,20 @@ def run(arg_dict):
         model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
         train_nmis,test_scores_ll = train(model,hyparams,name)
     #save_path = embedder.save_weights(sess)
-    print 'end training' 
+    log_print('end training') 
     return train_nmis
 
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 if __name__ == "__main__":
-    print 'entered main:',now()
+    logfile = open(project_dir+'log_main.txt','a+')
+    log_print('entered main:',now())
     argv = sys.argv
     arg_dict = my_parser(argv)
     gpu = arg_dict['gpu']
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     #config = tf.ConfigProto(allow_soft_placement=True)
-    print('Starting TF Session')
+    print('Starting TF Session for',arg_dict['name'])
     #sess = tf.InteractiveSession(config=config)
     sess = tf.InteractiveSession()
     run(arg_dict)
