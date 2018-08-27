@@ -16,9 +16,19 @@ import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 
+project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
+logfile_path = project_dir+'/log_test.txt'
+
+def log_print(*msg):
+    with open(logfile_path,'a+') as logfile:
+        msg = [str(m) for m in msg]
+        logfile.write(' '.join(msg))
+        logfile.write('\n')
+
 def as_bool(s):
     if s=='False': return False
     if s=='True': return True
+
 def my_parser(argv):
     ret = {}
     n = len(argv)
@@ -38,12 +48,10 @@ def my_parser(argv):
 argv = sys.argv
 arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
-project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
-
 dataset_flag = arg_dict['dataset']
 use_deepset = as_bool(arg_dict['deepset'])
 data_split = int(arg_dict['data_split'])
-print 'Loading train data... '
+log_print('Loading train data... ')
 data = get_data(data_split,dataset_flag)
 
 split_name = ['train','test','valid'][data_split]
@@ -76,8 +84,8 @@ saver = tf.train.Saver(tf.global_variables())
 KMeans = cluster.KMeans
 def test(test_data,use_deepset=False): 
     global startpoint,endpoint
-    print 'begin test'
-    test_xs,test_ys,test_ys_membership = test_data
+    log_print('begin test')
+    test_xs,test_ys_membership = test_data
     n_test = test_xs.shape[0]
     n_clusters = test_ys_membership.shape[1]
     # 1) embed batch by batch
@@ -100,24 +108,24 @@ def test(test_data,use_deepset=False):
     while True:
         try:
             xs_batch = batch_iter.next()       
-            print 'embedding batch ',i
+            log_print('embedding batch ',i)
             embedded_xs_batch = get_embedding(xs_batch,startpoint,endpoint)
             embedding_list.append(embedded_xs_batch)
             i+=1
         except:
-            print 'finished inception embedding'
+            log_print('finished inception embedding')
             np_embeddings = np.concatenate(embedding_list)
             break
     if use_deepset:
         global deepset_startpoint,deepset_endpoint
-        print 'before ds module:',np_embeddings
+        log_print('before ds module:',np_embeddings)
         feed_dict = {deepset_startpoint: np_embeddings}
         np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
-        print 'after ds module:',np_embeddings
+        log_print('after ds module:',np_embeddings)
     # 2) cluster
-    print 'clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...'
+    log_print('clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...')
     km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
-    print 'finished clustering'
+    log_print('finished clustering')
     labels = km.labels_
     #labels_normalized = km_normalized.labels_
     nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
@@ -137,24 +145,25 @@ try: # load previous results, see what checkpoint was last restored and tested
     to_append = np.load(cp_file_name)[0]
     n_tests_already_made = len(to_append)
     if n_tests_already_made == N:
-        print '{} evaluation completed'.format(name)
+        log_print('{} evaluation completed'.format(name))
     else:
         range_checkpoints = default_range_checkpoints[n_tests_already_made:]
-        print 'restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1]
+        log_print('restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1])
 except:
-    print 'no previous evaluations found. Evaluating from ckpt 0.'
+    log_print('no previous evaluations found. Evaluating from ckpt 0.')
     range_checkpoints = default_range_checkpoints
     to_append = []
 for i in range_checkpoints:
-    print 'testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(data_split))
+    log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(data_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
-    if use_deepset: print 'WARNING: using deepset' 
+    if use_deepset: log_print('WARNING: using deepset' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
+    pdb.set_trace()
     saver.restore(sess,ckpt_path)
     result = test(data,use_deepset)
     results.append(result)
     np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
-    print 'checkpoint result:',result
-print '*'*50
-print 'results for {}:'.format(name),results
-print '*'*50
+    log_print('checkpoint result:',result)
+log_print('*'*50)
+log_print('results for {}:'.format(name),results)
+log_print('*'*50)

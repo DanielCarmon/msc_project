@@ -1,5 +1,5 @@
 from inspect import currentframe, getframeinfo
-import SharedArray
+#import SharedArray
 import pickle
 import signal
 import time
@@ -289,11 +289,9 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
         loaded_data = [c[:len(c)/2] for c in loaded_data] # remove augmentation
         print 'removed augmentation. concatenating'
         xs[...] = np.concatenate(loaded_data)
-    agreement_islands = [np.ones((sz,sz)) for sz in class_szs]
-    ys = block_diag(*agreement_islands) # partition matrix
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
-    return xs,ys,ys_membership
+    return xs,ys_membership
 
 def l2_normalize(arr):
     arr_norms = np.sqrt(np.sum(arr**2,1))
