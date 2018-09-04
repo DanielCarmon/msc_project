@@ -24,7 +24,7 @@ def log_print(*msg):
         msg = [str(m) for m in msg]
         logfile.write(' '.join(msg))
         logfile.write('\n')
-
+log_print('entered restore_and_test.py')
 def as_bool(s):
     if s=='False': return False
     if s=='True': return True
@@ -51,10 +51,11 @@ inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_
 dataset_flag = arg_dict['dataset']
 use_deepset = as_bool(arg_dict['deepset'])
 data_split = int(arg_dict['data_split'])
+mini = data_split>2
 log_print('Loading train data... ')
 data = get_data(data_split,dataset_flag)
 
-split_name = ['train','test','valid'][data_split]
+split_name = ['train','test','valid','minitrain','minitest'][data_split]
 fname_prefix = split_name+'_data_scores'
 gpu = arg_dict['gpu']
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -66,6 +67,7 @@ d = 299
 embed_dim = 1001
 list_final_clusters = [100,98,512,102]
 n_final_clusters = list_final_clusters[dataset_flag]
+if mini: n_final_clusters = n_final_clusters/2
 embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
 endpoint = embedder.embed(startpoint)
@@ -132,6 +134,7 @@ def test(test_data,use_deepset=False):
     #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
+    print 'result:',result
     return result
     
 N = 4500
@@ -158,7 +161,6 @@ for i in range_checkpoints:
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_deepset: log_print('WARNING: using deepset' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
-    pdb.set_trace()
     saver.restore(sess,ckpt_path)
     result = test(data,use_deepset)
     results.append(result)

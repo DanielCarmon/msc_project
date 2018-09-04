@@ -222,20 +222,26 @@ def get_szs_and_offsets(batch_classes,dataset_flag):
     offsets = offsets_lst[dataset_flag][batch_classes-1] 
     return szs,offsets
 
-def init_train_data(dataset_flag):
-    global train_data,fixed_ys
-    try:
-        train_data = sa.attach('shm://train_data{}.npy'.format(dataset_flag))
-    except:
-        train_data_dir = train_data_dirs[dataset_flag]
+def init_train_data(dataset_flag,mini=False):
+    '''
+    dataset_flag: which dataset we use
+    mini: inidicates whether we use a minisplit or not
+    '''
+    global train_data,fixed_ys,train_data_dir,train_classes
+    #try:
+    #    train_data = sa.attach('shm://train_data{}.npy'.format(dataset_flag))
+    #except:
+    train_data_dir = train_data_dirs[dataset_flag]
+    train_classes = train_classes_lst[dataset_flag]
+    if mini: # remove half of classes
+        train_data = np.load(train_data_dir+'/mini_train_data.npy')
+        train_classes = train_classes[:len(train_classes)/2]
+    else:
         train_data = np.load(train_data_dir+'/train_data.npy')
-
 
 def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False):
     global fixed_ys
-    train_data_dir = train_data_dirs[dataset_flag]
     n_per_class = int(n/k)
-    train_classes = train_classes_lst[dataset_flag]
     
     # sample
     batch_classes = np.random.choice(train_classes,k,replace=False)
@@ -268,17 +274,20 @@ def get_len_list(inds,data_dir,augment):
         ret.append(to_append)
     return ret
 
-def load_specific_data(data_dir,inds,augment=False,use_crop=False):
+def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     version = ''
     if use_crop: version = '_cropped'
     data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
     class_szs = get_len_list(inds,data_dir,augment)
+    if mini: class_szs = class_szs[:len(class_szs)/2]
     shape = sum(class_szs),299,299,3
     which_data = str(inds[0])+"_to_"+str(inds[-1])
     which_dataset = data_dir.split('/')[-1]
     xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
     xs_name = data_dir+'/'+xs_name
     if augment: xs_name+='_augmented'
+    xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
+    '''
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
     except:
@@ -289,6 +298,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False):
         loaded_data = [c[:len(c)/2] for c in loaded_data] # remove augmentation
         print 'removed augmentation. concatenating'
         xs[...] = np.concatenate(loaded_data)
+    '''
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
     return xs,ys_membership
@@ -303,20 +313,27 @@ def get_data(split_flag,dataset_flag):
     split_flag:
         0: train
         1: test
+        2: val
+        3: minitrain
+        4: minitest
     dataset_flag:
         0: birds
         1: cars
         2: products
+        3: flowers
     '''
     ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
     data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products/permuted_train_data',ddp+'oxford_flowers/total']
     train_inds_list = [range(1,101),range(1,99),range(1,513),range(1,103)]
-    test_inds_list = [range(101,201),range(99,196),None,range(103,205)]
+    test_inds_list = [range(101,201),range(99,197),None,range(103,205)]
     val_inds_list = [None,None,None,range(205,307)]
-    split_list = [train_inds_list,test_inds_list,val_inds_list]
+    minitrain_inds_list = [range(1,51),range(1,99)]
+    minitest_inds_list = [range(51,101),range(99,199)]
+    split_list = [train_inds_list,test_inds_list,val_inds_list,minitrain_inds_list,minitest_inds_list]
     inds = split_list[split_flag][dataset_flag]
+    mini = split_flag>2
     if inds==None: 
         print 'unsupported split:',split_flag,dataset_flag
         print 'for ebay test split, use "restore_and_test_ebay_total.py"'
     data_dir = data_dirs[dataset_flag]
-    return load_specific_data(data_dir,inds)
+    return load_specific_data(data_dir,inds,mini=mini)

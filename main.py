@@ -112,8 +112,10 @@ def run(arg_dict):
         k = arg_dict['n_train_classes']
     name = arg_dict['name']
     dataset_flag = arg_dict['dataset']
+    mini = arg_dict['data_split'] > 2
+    assert ('mini' in name) == mini # dont overwrite models
     log_print(now(),': loading data for',name,'...')
-    init_train_data(dataset_flag)
+    init_train_data(dataset_flag,mini)
     log_print('done')
     n_gpu_can_handle = 100
     n_ = n_gpu_can_handle/k # points per cluster
@@ -133,6 +135,8 @@ def run(arg_dict):
     init = arg_dict['init']
     list_final_clusters = [100,98,512,102]
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
+    if mini:
+        n_final_clusters = n_final_clusters/2
     embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
    
     if arg_dict['deepset']:
@@ -172,9 +176,9 @@ def run(arg_dict):
         loss_history = []
         nmi_score_history = []
         step = model.train_step
-
         for i in range(n_offset,n_steps): 
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys)
+            #pdb.set_trace()
             feed_dict = {model.x: xs, model.y: ys}
             if (i%i_log==0): # case where i==0 is baseline
                 log_print(now(),': start ',i,'ckpt save for',name)
@@ -213,6 +217,8 @@ def run(arg_dict):
     # end-to-end training:
     i_log = 100 
     n_train_iters = 4500
+    if mini:
+        n_train_iters = 1000
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
@@ -253,3 +259,4 @@ if __name__ == "__main__":
     #sess = tf.InteractiveSession(config=config)
     sess = tf.InteractiveSession()
     run(arg_dict)
+    log_print('at end of main')

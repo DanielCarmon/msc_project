@@ -40,3 +40,4 @@ while True:
         lines_to_print.append(path_suff+' --> '+str((last_n,n_train,n_test)))
     os.system('clear')
     for line in lines_to_print: print line
+    time.sleep(0.1)
