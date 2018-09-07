@@ -29,15 +29,14 @@ while True:
         except:
             last_n=0
         path_suff = path.split('/')[-1]
-        try: 
-            n_train = len(np.load('train_data_scores'+path_suff+'.npy')[0])
-        except:
-            n_train = 0
-        try:
-            n_test = len(np.load('test_data_scores'+path_suff+'.npy')[0])
-        except:
-            n_test = 0
-        lines_to_print.append(path_suff+' --> '+str((last_n,n_train,n_test)))
+        ns = []
+        for split in ['train','test','valid','minitrain','minitest']:
+            try:
+                n_split = len(np.load(split+'_data_scores'+path_suff+'.npy')[0])
+                ns.append(n_split)
+            except:
+                ns.append(-1)
+        lines_to_print.append(path_suff+' --> '+str((last_n,ns)))
     os.system('clear')
     for line in lines_to_print: print line
     time.sleep(0.1)

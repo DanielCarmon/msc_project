@@ -4,6 +4,7 @@ import tensorflow as tf
 from sklearn import cluster
 import traceback
 import sys
+from control import dcdb
 from data_api import *
 from model import *
 import matplotlib.gridspec as gridspec
@@ -54,13 +55,13 @@ data_split = int(arg_dict['data_split'])
 mini = data_split>2
 log_print('Loading train data... ')
 data = get_data(data_split,dataset_flag)
-
+log_print('finished')
 split_name = ['train','test','valid','minitrain','minitest'][data_split]
 fname_prefix = split_name+'_data_scores'
 gpu = arg_dict['gpu']
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 config = tf.ConfigProto(allow_soft_placement=True)
-print('Starting TF Session')
+log_print('Starting TF Session')
 sess = tf.InteractiveSession(config=config)
 
 d = 299
@@ -85,6 +86,7 @@ saver = tf.train.Saver(tf.global_variables())
 
 KMeans = cluster.KMeans
 def test(test_data,use_deepset=False): 
+    tic = dcdb.now()
     global startpoint,endpoint
     log_print('begin test')
     test_xs,test_ys_membership = test_data
@@ -134,10 +136,12 @@ def test(test_data,use_deepset=False):
     #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
-    print 'result:',result
+    toc = dcdb.now()
+    log_print('elapsed: {}'.format(toc-tic))
     return result
     
 N = 4500
+if mini: N = 500
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 name = arg_dict['name']
@@ -147,10 +151,10 @@ DIR = project_dir+'/{}'.format(name)
 try: # load previous results, see what checkpoint was last restored and tested
     to_append = np.load(cp_file_name)[0]
     n_tests_already_made = len(to_append)
+    range_checkpoints = default_range_checkpoints[n_tests_already_made:]
     if n_tests_already_made == N:
         log_print('{} evaluation completed'.format(name))
     else:
-        range_checkpoints = default_range_checkpoints[n_tests_already_made:]
         log_print('restoring checkpoints in range',range_checkpoints[0],'to',range_checkpoints[-1])
 except:
     log_print('no previous evaluations found. Evaluating from ckpt 0.')

@@ -14,6 +14,14 @@ import pdb
 from scipy.misc import imread, imresize
 rand = np.random.randint
 
+project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
+logfile_path = project_dir+'/log_test.txt'
+def log_print(*msg):
+    with open(logfile_path,'a+') as logfile:
+        msg = [str(m) for m in msg]
+        logfile.write(' '.join(msg))
+        logfile.write('\n')
+
 def echo(x):
     print 'loading:',x
     return x
@@ -286,7 +294,13 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     xs_name = which_dataset+'_'+which_data+'_xs{}'.format(version)
     xs_name = data_dir+'/'+xs_name
     if augment: xs_name+='_augmented'
-    xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
+    log_print('reading xs from {}...'.format(xs_name))
+    try:
+        xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
+    except:
+        log_print('failed to read {}. exiting program'.format(xs_name))
+        exit(0)
+    log_print('read xs with shape {}'.format(xs.shape))
     '''
     try:
         xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
@@ -322,13 +336,14 @@ def get_data(split_flag,dataset_flag):
         2: products
         3: flowers
     '''
+    log_print('333')
     ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
     data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products/permuted_train_data',ddp+'oxford_flowers/total']
     train_inds_list = [range(1,101),range(1,99),range(1,513),range(1,103)]
     test_inds_list = [range(101,201),range(99,197),None,range(103,205)]
     val_inds_list = [None,None,None,range(205,307)]
     minitrain_inds_list = [range(1,51),range(1,99)]
-    minitest_inds_list = [range(51,101),range(99,199)]
+    minitest_inds_list = [range(51,101),range(99,197)]
     split_list = [train_inds_list,test_inds_list,val_inds_list,minitrain_inds_list,minitest_inds_list]
     inds = split_list[split_flag][dataset_flag]
     mini = split_flag>2
