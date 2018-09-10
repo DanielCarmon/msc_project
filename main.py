@@ -27,7 +27,7 @@ from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 import numpy as np
 
-
+#git push speed check
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 logfile_path = project_dir+'/log_main.txt'
 

@@ -287,7 +287,6 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     if use_crop: version = '_cropped'
     data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
     class_szs = get_len_list(inds,data_dir,augment)
-    if mini: class_szs = class_szs[:len(class_szs)/2]
     shape = sum(class_szs),299,299,3
     which_data = str(inds[0])+"_to_"+str(inds[-1])
     which_dataset = data_dir.split('/')[-1]
@@ -336,14 +335,14 @@ def get_data(split_flag,dataset_flag):
         2: products
         3: flowers
     '''
-    log_print('333')
+    log_print('in get_data function')
     ddp ='/specific/netapp5_2/gamir/carmonda/research/vision/' # data dir prefix
     data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products/permuted_train_data',ddp+'oxford_flowers/total']
     train_inds_list = [range(1,101),range(1,99),range(1,513),range(1,103)]
     test_inds_list = [range(101,201),range(99,197),None,range(103,205)]
     val_inds_list = [None,None,None,range(205,307)]
-    minitrain_inds_list = [range(1,51),range(1,99)]
-    minitest_inds_list = [range(51,101),range(99,197)]
+    minitrain_inds_list = [range(1,51),range(1,50)] 
+    minitest_inds_list = [range(51,101),range(50,99)]
     split_list = [train_inds_list,test_inds_list,val_inds_list,minitrain_inds_list,minitest_inds_list]
     inds = split_list[split_flag][dataset_flag]
     mini = split_flag>2

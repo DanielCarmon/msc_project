@@ -141,7 +141,7 @@ def test(test_data,use_deepset=False):
     return result
     
 N = 4500
-if mini: N = 500
+if mini: N = 1000
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 name = arg_dict['name']

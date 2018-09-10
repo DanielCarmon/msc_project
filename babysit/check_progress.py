@@ -13,6 +13,7 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 while True:
+    #pdb.set_trace()
     project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project'
     fname = sys.argv[1]
     lines = open(fname).readlines()
