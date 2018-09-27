@@ -113,9 +113,9 @@ def run(arg_dict):
     dataset_flag = arg_dict['dataset']
     mini = arg_dict['data_split'] > 2
     assert ('mini' in name) == mini # dont overwrite models
-    log_print(now(),': loading data for',name,'...')
-    init_train_data(dataset_flag,mini)
-    log_print('done')
+    log_print(now(),': started loading data for',name,'...')
+    init_train_data(dataset_flag,mini=mini,name=name)
+    log_print(now(),': finished loading data for',name,'...')
     n_gpu_can_handle = 100
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
@@ -176,9 +176,6 @@ def run(arg_dict):
         nmi_score_history = []
         step = model.train_step
         for i in range(n_offset,n_steps): 
-            xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys)
-            #pdb.set_trace()
-            feed_dict = {model.x: xs, model.y: ys}
             if (i%i_log==0): # case where i==0 is baseline
                 log_print(now(),': start ',i,'ckpt save for',name)
                 nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history
@@ -187,9 +184,14 @@ def run(arg_dict):
                 np.save(project_dir+'train_losses{}.npy'.format(name),np.array(l2_2_save))
                 saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i)) 
                 log_print(now(),': finish ',i,'ckpt save for',name)
+                refresh_cond = dataset_flag==2 and i%(3*i_log)==0
+                if refresh_cond:
+                    refresh_train_data_and_ls(dataset_flag)
+
+            xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name)
+            feed_dict = {model.x: xs, model.y: ys}
             try:
                 log_print(now(),': train iter',i,'for',name)
-                #pdb.set_trace()
                 #activations_tensors = sess.run(embedder.activations_dict,feed_dict=feed_dict)
                 #log_print('before embed')
                 #embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
@@ -215,9 +217,9 @@ def run(arg_dict):
     log_print('begin training')
     # end-to-end training:
     i_log = 100 
-    n_train_iters = 4500
+    n_train_iters = 6000
     if mini:
-        n_train_iters = 1000
+        n_train_iters = 4000
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []

@@ -53,15 +53,16 @@ dataset_flag = arg_dict['dataset']
 use_deepset = as_bool(arg_dict['deepset'])
 data_split = int(arg_dict['data_split'])
 mini = data_split>2
-log_print('Loading train data... ')
+name = arg_dict['name']
+log_print(name+': '+'Loading data... ')
 data = get_data(data_split,dataset_flag)
-log_print('finished')
+log_print(name+': '+'finished')
 split_name = ['train','test','valid','minitrain','minitest'][data_split]
 fname_prefix = split_name+'_data_scores'
 gpu = arg_dict['gpu']
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 config = tf.ConfigProto(allow_soft_placement=True)
-log_print('Starting TF Session')
+log_print(name+': '+'Starting TF Session')
 sess = tf.InteractiveSession(config=config)
 
 d = 299
@@ -88,7 +89,7 @@ KMeans = cluster.KMeans
 def test(test_data,use_deepset=False): 
     tic = dcdb.now()
     global startpoint,endpoint
-    log_print('begin test')
+    log_print(name+': '+'begin test')
     test_xs,test_ys_membership = test_data
     n_test = test_xs.shape[0]
     n_clusters = test_ys_membership.shape[1]
@@ -112,24 +113,24 @@ def test(test_data,use_deepset=False):
     while True:
         try:
             xs_batch = batch_iter.next()       
-            log_print('embedding batch ',i)
+            log_print(name+': '+'embedding batch ',i)
             embedded_xs_batch = get_embedding(xs_batch,startpoint,endpoint)
             embedding_list.append(embedded_xs_batch)
             i+=1
         except:
-            log_print('finished inception embedding')
+            log_print(name+': '+'finished inception embedding')
             np_embeddings = np.concatenate(embedding_list)
             break
     if use_deepset:
         global deepset_startpoint,deepset_endpoint
-        log_print('before ds module:',np_embeddings)
+        log_print(name+': '+'before ds module:',np_embeddings)
         feed_dict = {deepset_startpoint: np_embeddings}
         np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
-        log_print('after ds module:',np_embeddings)
+        log_print(name+': '+'after ds module:',np_embeddings)
     # 2) cluster
-    log_print('clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...')
+    log_print(name+': '+'clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...')
     km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
-    log_print('finished clustering')
+    log_print(name+': '+'finished clustering')
     labels = km.labels_
     #labels_normalized = km_normalized.labels_
     nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
@@ -137,16 +138,15 @@ def test(test_data,use_deepset=False):
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
     toc = dcdb.now()
-    log_print('elapsed: {}'.format(toc-tic))
+    log_print(name+': '+'elapsed: {}'.format(toc-tic))
     return result
     
-N = 4500
-if mini: N = 1000
+N = 6000
+if mini: N = 2000
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
-name = arg_dict['name']
 results = []
-cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
+cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name) 
 DIR = project_dir+'/{}'.format(name)
 try: # load previous results, see what checkpoint was last restored and tested
     to_append = np.load(cp_file_name)[0]
@@ -165,11 +165,15 @@ for i in range_checkpoints:
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_deepset: log_print('WARNING: using deepset' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
-    saver.restore(sess,ckpt_path)
+    try:
+        saver.restore(sess,ckpt_path)
+    except:
+        log_print(name+': restore from '+ckpt_path+' failed. exiting program')
+        exit(0)
     result = test(data,use_deepset)
     results.append(result)
     np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
-    log_print('checkpoint result:',result)
+    log_print(name+': '+'checkpoint result:',result)
 log_print('*'*50)
 log_print('results for {}:'.format(name),results)
 log_print('*'*50)

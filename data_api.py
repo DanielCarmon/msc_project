@@ -1,4 +1,5 @@
 from inspect import currentframe, getframeinfo
+import os
 #import SharedArray
 import pickle
 import signal
@@ -15,7 +16,7 @@ from scipy.misc import imread, imresize
 rand = np.random.randint
 
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
-logfile_path = project_dir+'/log_test.txt'
+logfile_path = project_dir+'/log_data_api.txt'
 def log_print(*msg):
     with open(logfile_path,'a+') as logfile:
         msg = [str(m) for m in msg]
@@ -226,28 +227,51 @@ def get_fixed_ys(n,k):
     return ys_assignment
 
 def get_szs_and_offsets(batch_classes,dataset_flag):
+    global szs_lst,offsets_lst
     szs = szs_lst[dataset_flag][batch_classes-1]
     offsets = offsets_lst[dataset_flag][batch_classes-1] 
     return szs,offsets
 
-def init_train_data(dataset_flag,mini=False):
+def refresh_train_data_and_ls(dataset_flag,mini=False,name=''):
+    global train_data,train_data_dirs,szs_lst,offsets_lst
+    train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data','/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'] # reset data paths 
+    def get_newest(): # two directories acting as cyclic data buffer
+        path0 = train_data_dirs[dataset_flag]+'/tmp_data0/timestamp'
+        path1 = train_data_dirs[dataset_flag]+'/tmp_data1/timestamp'
+        time0 = os.path.getmtime(path0)
+        time1 = os.path.getmtime(path1)
+        return int(time0<time1)
+    i_xs = get_newest() # index of newest data
+    train_data_dirs[dataset_flag]+='/tmp_data'+str(i_xs) # update new data path
+    train_data_dir = train_data_dirs[dataset_flag] 
+    szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)] # get lengths file based on updated paths
+    offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst # calculate offsets 
+    train_data = np.load(train_data_dir+'/train_data.npy') # get new data
+
+def init_train_data(dataset_flag,mini=False,name=''):
     '''
     dataset_flag: which dataset we use
     mini: inidicates whether we use a minisplit or not
     '''
     global train_data,fixed_ys,train_data_dir,train_classes
-    #try:
-    #    train_data = sa.attach('shm://train_data{}.npy'.format(dataset_flag))
-    #except:
+    log_print(name+'0')
     train_data_dir = train_data_dirs[dataset_flag]
     train_classes = train_classes_lst[dataset_flag]
     if mini: # remove half of classes
+        log_print(name+'1')
         train_data = np.load(train_data_dir+'/mini_train_data.npy')
+        log_print(name+'1.5')
         train_classes = train_classes[:len(train_classes)/2]
+        log_print(name+'2')
     else:
-        train_data = np.load(train_data_dir+'/train_data.npy')
+        log_print(name+'3')
+        try:
+            train_data = np.load(train_data_dir+'/train_data.npy')
+        except:
+            log_print(name+'3.5')
+        log_print(name+'4')
 
-def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False):
+def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     global fixed_ys
     n_per_class = int(n/k)
     
@@ -260,17 +284,41 @@ def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False):
     try:
         xs = train_data[final_inds]
     except:
+        pdb.set_trace()
         print '493:',dataset_flag,k,n,recompute_ys,'train_data.shape:',train_data.shape,'batch_classes:',batch_classes,'clas_szs:',class_szs,'class_offsets:',class_offsets,'img_inds_relative:',img_inds_relative,'final_inds:',final_inds
-        exit(0)
+        ls_batch = [len(x) for x in img_inds_relative]
+        ls_total = szs_lst[dataset_flag] 
+        try:
+            np.save('buggy_xs_batch'+name,xs)
+        except:
+            pass
+        try:
+            np.save('buggy_ls_batch'+name,ls_batch)
+        except:
+            pass
+        try:
+            np.save('buggy_xs_total'+name,train_data)
+        except:
+            pass
+        try:
+            np.save('buggy_ls_total'+name,ls_total)
+        except:
+            pass
+        try:
+            np.save('buggy_stat'+name,[k,n,train_data.shape,batch_classes,class_szs,class_offsets_img_inds_relative,final_inds])
+        except:
+            pass
 
     if recompute_ys:
-        class_szs = [c.shape[0] for c in loaded_data]
+        class_szs = [len(x) for x in img_inds_relative]
         assignment_islands = [np.ones((sz,1)) for sz in class_szs]
         ys_assignment = block_diag(*assignment_islands) # assignment matrix
     else:
         if fixed_ys is None:
             fixed_ys = get_fixed_ys(n,k)
         ys_assignment = fixed_ys
+    #np.save('test_me',xs)
+    #np.save('test_me_ls',class_szs)
     return xs,ys_assignment
 
 def get_len_list(inds,data_dir,augment):
@@ -300,18 +348,6 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
         log_print('failed to read {}. exiting program'.format(xs_name))
         exit(0)
     log_print('read xs with shape {}'.format(xs.shape))
-    '''
-    try:
-        xs = np.memmap(xs_name,dtype='float32',mode='r+',shape=shape)
-    except:
-        print 'creating xs variable'
-        xs = np.memmap(xs_name,dtype='float32',mode='w+',shape=shape)
-        loaded_data = [np.load(path) if echo(path) else None for path in data_paths]
-        print 'finished loading. removing augmentation'
-        loaded_data = [c[:len(c)/2] for c in loaded_data] # remove augmentation
-        print 'removed augmentation. concatenating'
-        xs[...] = np.concatenate(loaded_data)
-    '''
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
     return xs,ys_membership
