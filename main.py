@@ -120,6 +120,7 @@ def run(arg_dict):
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
     recompute_ys = dataset_flag==2 # only recompute for products dataset
+    n_ebay_batches = 50
     clst_module = arg_dict['cluster']
     hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
     model_lr = arg_dict['model_lr']
@@ -174,9 +175,10 @@ def run(arg_dict):
         param_history = []
         loss_history = []
         nmi_score_history = []
-        step = model.train_step
+        step = model.train_step # update step op
+        current_batch = 0 # only relevant for ebay dataset
         for i in range(n_offset,n_steps): 
-            if (i%i_log==0): # case where i==0 is baseline
+            if (i%i_log==0): # case where i==0 is baseline embeddings
                 log_print(now(),': start ',i,'ckpt save for',name)
                 nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_2_save))
@@ -186,7 +188,9 @@ def run(arg_dict):
                 log_print(now(),': finish ',i,'ckpt save for',name)
                 refresh_cond = dataset_flag==2 and i%(3*i_log)==0
                 if refresh_cond:
-                    refresh_train_data_and_ls(dataset_flag)
+                    refresh_train_data_and_ls(dataset_flag,current_batch=current_batch) # load new dataset to ram
+                    current_batch+=1
+                    current_batch%=n_ebay_batches
 
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name)
             feed_dict = {model.x: xs, model.y: ys}

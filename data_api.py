@@ -232,17 +232,10 @@ def get_szs_and_offsets(batch_classes,dataset_flag):
     offsets = offsets_lst[dataset_flag][batch_classes-1] 
     return szs,offsets
 
-def refresh_train_data_and_ls(dataset_flag,mini=False,name=''):
+def refresh_train_data_and_ls(dataset_flag,current_batch,mini=False,name=''):
     global train_data,train_data_dirs,szs_lst,offsets_lst
     train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data','/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'] # reset data paths 
-    def get_newest(): # two directories acting as cyclic data buffer
-        path0 = train_data_dirs[dataset_flag]+'/tmp_data0/timestamp'
-        path1 = train_data_dirs[dataset_flag]+'/tmp_data1/timestamp'
-        time0 = os.path.getmtime(path0)
-        time1 = os.path.getmtime(path1)
-        return int(time0<time1)
-    i_xs = get_newest() # index of newest data
-    train_data_dirs[dataset_flag]+='/tmp_data'+str(i_xs) # update new data path
+    train_data_dirs[dataset_flag]+='/tmp_data'+str(current_batch) # update new data path
     train_data_dir = train_data_dirs[dataset_flag] 
     szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)] # get lengths file based on updated paths
     offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst # calculate offsets 
@@ -284,7 +277,7 @@ def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     try:
         xs = train_data[final_inds]
     except:
-        pdb.set_trace()
+        #pdb.set_trace()
         print '493:',dataset_flag,k,n,recompute_ys,'train_data.shape:',train_data.shape,'batch_classes:',batch_classes,'clas_szs:',class_szs,'class_offsets:',class_offsets,'img_inds_relative:',img_inds_relative,'final_inds:',final_inds
         ls_batch = [len(x) for x in img_inds_relative]
         ls_total = szs_lst[dataset_flag] 
@@ -376,7 +369,7 @@ def get_data(split_flag,dataset_flag):
     data_dirs = [ddp+'caltech_birds/CUB_200_2011',ddp+'stanford_cars',ddp+'stanford_products/permuted_train_data',ddp+'oxford_flowers/total']
     train_inds_list = [range(1,101),range(1,99),range(1,513),range(1,103)]
     test_inds_list = [range(101,201),range(99,197),None,range(103,205)]
-    val_inds_list = [None,None,None,range(205,307)]
+    val_inds_list = [None,None,range(512),range(205,307)]
     minitrain_inds_list = [range(1,51),range(1,50)] 
     minitest_inds_list = [range(51,101),range(50,99)]
     split_list = [train_inds_list,test_inds_list,val_inds_list,minitrain_inds_list,minitest_inds_list]
