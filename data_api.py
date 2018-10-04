@@ -27,178 +27,6 @@ def echo(x):
     print 'loading:',x
     return x
 
-def img_animate(tensor):
-    import matplotlib.animation as anim
-    import types
-    # args:
-    #   - tensor: [t,d,d] array
-    fig = plt.figure()
-    ax1=fig.add_subplot(1,2,1)
-    ims=[]
-    for time in xrange(np.shape(tensor)[0]):
-        im = ax1.imshow(tensor[time,:,:],cmap='gray')
-        ims.append([im])
-    #run animation
-    ani = anim.ArtistAnimation(fig,ims, interval=100,blit=False)
-    plt.show()
-
-def binary_display(a,title = ""):
-    if type(a)==list:
-        # todo: add support for 2< images
-        fig = plt.figure()
-        sub = fig.add_subplot(1,2,1)
-        img = Image.fromarray(a[0]*255)
-        plt.imshow(img)
-        sub.set_title('Prediction')
-        sub = fig.add_subplot(1,2,2)
-        img = Image.fromarray(a[1]*255)
-        plt.imshow(img)
-        sub.set_title('Ground Truth')
-    else:
-        img = Image.fromarray(a*255)
-        img.show(title)
-
-def display(a):
-    misc.imshow(a)
-
-def show(a):
-	plt.imshow(a)
-	plt.show()
-	
-global_color_coord = 0
-
-"""
-def get_gmm_data(n1,n2=None,d=3):
-    if not n2:
-        n2=n1
-    mu = d*np.ones(d)
-    x1 = np.random.normal(mu,size=(n1,d))
-    x2 = np.random.normal(-mu,size=(n2,d))
-    x = np.vstack((x1,x2))
-    #np.random.shuffle(x)
-    return x
-"""
-""
-
-def get_gaussians(n,d=2,k=2):
-    assert k>=1
-    xs = np.zeros((0,d))
-    ys = np.zeros((0,k))
-    for i in range(k):
-        mu = 7*i*np.ones((1, d))
-        sample = np.random.normal(mu,size=(n,d))
-        xs = np.vstack((xs,sample))
-        membership_vec = np.zeros((1,k))
-        membership_vec[0,i] = 1
-        ys = np.vstack((ys,np.tile(membership_vec,(n,1))))
-    return xs,ys
-
-def get_unfaithfull_data(n,r=2):
-    '''
-    Returns data who's gt clustering doesn't correspond to it's KmeansClustering.
-    Need to apply a linear transformation in order to restore faithfulness.
-    Data will be comprised of 4 unfaithfull clusters, which in turn correspond to 2 gt clusters.
-    i.e:
-    A,B: gt clustering labels.
-    
-        A----B
-        |    |
-       (r)  (r)
-        |    |
-        A----B
-
-    args:
-        - n: number of points per unfaithfull cluster.
-        - r: ratio of unfaithfulness  
-    '''
-    clsts = [[1,0],[0,1]]
-    base_r = 10
-    x = np.ndarray((0,2))
-    y = np.ndarray((0,2))
-    for i in range (4):
-        mu = (base_r*(i%2),base_r*r*(int(i<2)))
-        x_tmp = np.random.normal(mu,size=(n,2))
-        x = np.vstack((x,x_tmp))
-        clst = clsts[i%2]
-        y_tmp = np.tile(clst,(n,1))
-        y = np.vstack((y,y_tmp))
-    return x,y
-
-def get_gmm_data(n,k=2):
-    x = np.ndarray((0,3))
-    for i in range (k):
-        mu = np.random.uniform(-1,1,size=(1,3))
-        mu = 5*mu # keep 'em seperated
-        x_tmp = np.random.normal(mu,size=(n,3))
-        x = np.vstack((x,x_tmp))
-    return x
-""
-def scatter_2d(x,indices=None):
-    if id(indices)!=id(None): indices = np.array(indices)
-    def randrange(n, vmin, vmax):
-        '''
-        Helper function to make an array of random numbers having shape (n, )
-        with each number distributed Uniform(vmin, vmax).
-        '''
-        return (vmax - vmin)*np.random.rand(n) + vmin
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    if id(indices)!=id(None):
-        cs = ['r','b','g','black'] # is it necessary? doesn't pyplot cycle through colors anyway?
-        for i in range(int(max(indices))+1):
-            c = cs[i]
-            points = x[indices==i]    
-            xs,ys = points[:,0],points[:,1]
-            ax.scatter(xs,ys,c=c,marker='o')
-    else:
-        xs,ys = x[:,0],x[:,1]
-        ax.scatter(xs,ys,marker='o')
-    plt.show()
-
-def scatter_3d(x,indices=None,title=None):
-    if id(indices)!=id(None): indices = np.array(indices)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    if id(indices)!=id(None):
-        cs = ['r','b','g','k','c','m','y','w'] # todo: add more colors. is it necessary? doesn't pyplot cycle through colors anyway?
-        for i in range(int(max(indices))+1):
-            c = cs[i]
-            points = x[indices==i]    
-            xs,ys,zs = points[:,0],points[:,1],points[:,2]
-            ax.scatter(xs,ys,zs,c=c,marker='o')
-            
-    else:
-        xs,ys,zs = x[:,0],x[:,1],x[:,2]
-        ax.scatter(xs,ys,zs,marker='o')
-    ax.set_xlabel('x');ax.set_ylabel('y');ax.set_zlabel('z');
-    if title!=None: plt.title(title)
-    plt.show()
-
-def scatter(x,indices=None):
-    d = x.shape[1]
-    if d == 2:
-        scatter_2d(x,indices)
-    elif d == 3:
-        scatter_3d(x,indices)
-    else:
-        print('Could not visualize data. Dimensionality > 3 ...')
-
-def noisify(x):
-    shape = x.shape
-    #eps = 0.1
-    eps = .15
-    noise = np.random.normal(0,eps,shape)
-    return x+noise
-
-def flip_noisify(arr,flip_ratio=0.2):
-    import random
-    num_flips = flip_ratio*arr.shape[0]*arr.shape[1]
-    num_flips = int(num_flips)
-    for flip in range(num_flips):
-        i,j = random.randint(0,arr.shape[0]-1),random.randint(0,arr.shape[1]-1)
-        arr[i,j] = 1-arr[i,j] # flip
-    return arr
-
 def get_relevant_fnames(file_names, class_name):
     ret = []
     for fname in file_names:
@@ -214,7 +42,11 @@ def crop_center(img,cropx,cropy):
     return img[starty:starty+cropy,startx:startx+cropx,:]
 
 # train globals
-train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data','/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train']    
+train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011',
+                   '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars',
+                   '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data',
+                   '/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'
+                   ]    
 train_classes_lst =[range(1,101),range(1,99),range(1,513),range(1,103)] 
 szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)]
 offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst 
@@ -234,8 +66,11 @@ def get_szs_and_offsets(batch_classes,dataset_flag):
 
 def refresh_train_data_and_ls(dataset_flag,current_batch,mini=False,name=''):
     global train_data,train_data_dirs,szs_lst,offsets_lst
-    train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars','/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data','/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'] # reset data paths 
-    train_data_dirs[dataset_flag]+='/tmp_data'+str(current_batch) # update new data path
+    train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011',
+                       '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars',
+                       '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data',
+                       '/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'
+                       ]   # reset 
     train_data_dir = train_data_dirs[dataset_flag] 
     szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)] # get lengths file based on updated paths
     offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst # calculate offsets 
@@ -247,22 +82,17 @@ def init_train_data(dataset_flag,mini=False,name=''):
     mini: inidicates whether we use a minisplit or not
     '''
     global train_data,fixed_ys,train_data_dir,train_classes
-    log_print(name+'0')
     train_data_dir = train_data_dirs[dataset_flag]
     train_classes = train_classes_lst[dataset_flag]
     if mini: # remove half of classes
-        log_print(name+'1')
         train_data = np.load(train_data_dir+'/mini_train_data.npy')
-        log_print(name+'1.5')
         train_classes = train_classes[:len(train_classes)/2]
-        log_print(name+'2')
     else:
-        log_print(name+'3')
         try:
             train_data = np.load(train_data_dir+'/train_data.npy')
         except:
-            log_print(name+'3.5')
-        log_print(name+'4')
+            log_print('exception when loading train data')
+            pdb.set_trace()
 
 def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     global fixed_ys
@@ -277,30 +107,8 @@ def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     try:
         xs = train_data[final_inds]
     except:
-        #pdb.set_trace()
-        print '493:',dataset_flag,k,n,recompute_ys,'train_data.shape:',train_data.shape,'batch_classes:',batch_classes,'clas_szs:',class_szs,'class_offsets:',class_offsets,'img_inds_relative:',img_inds_relative,'final_inds:',final_inds
-        ls_batch = [len(x) for x in img_inds_relative]
-        ls_total = szs_lst[dataset_flag] 
-        try:
-            np.save('buggy_xs_batch'+name,xs)
-        except:
-            pass
-        try:
-            np.save('buggy_ls_batch'+name,ls_batch)
-        except:
-            pass
-        try:
-            np.save('buggy_xs_total'+name,train_data)
-        except:
-            pass
-        try:
-            np.save('buggy_ls_total'+name,ls_total)
-        except:
-            pass
-        try:
-            np.save('buggy_stat'+name,[k,n,train_data.shape,batch_classes,class_szs,class_offsets_img_inds_relative,final_inds])
-        except:
-            pass
+        log_print('excpetion with train data load')
+        pdb.set_trace()
 
     if recompute_ys:
         class_szs = [len(x) for x in img_inds_relative]
@@ -344,11 +152,6 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
     return xs,ys_membership
-
-def l2_normalize(arr):
-    arr_norms = np.sqrt(np.sum(arr**2,1))
-    arr_norms = np.reshape(arr_norms,[arr.shape[0],1])
-    return arr/arr_norms
 
 def get_data(split_flag,dataset_flag):
     '''
