@@ -27,20 +27,6 @@ def echo(x):
     print 'loading:',x
     return x
 
-def get_relevant_fnames(file_names, class_name):
-    ret = []
-    for fname in file_names:
-        fname = fname.split(' ')[1]
-        if fname.split('/')[0]==class_name:
-            ret.append(fname)
-    return ret
-
-def crop_center(img,cropx,cropy):
-    y,x,_ = img.shape
-    startx = x//2-(cropx//2)  
-    starty = y//2-(cropy//2)    
-    return img[starty:starty+cropy,startx:startx+cropx,:]
-
 # train globals
 train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011',
                    '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars',
