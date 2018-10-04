@@ -1,2 +1,2 @@
-# msc_project
-End-to-end learning of a representation which is useful for a downstream clustering task.
+This repository contains code for Deep Metric Learning With EM++.
+
