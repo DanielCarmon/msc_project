@@ -64,13 +64,11 @@ os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 config = tf.ConfigProto(allow_soft_placement=True)
 log_print(name+': '+'Starting TF Session')
 sess = tf.InteractiveSession(config=config)
-
 d = 299
-embed_dim = 1001
 list_final_clusters = [100,98,512,102]
 n_final_clusters = list_final_clusters[dataset_flag]
 if mini: n_final_clusters = n_final_clusters/2
-embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
+embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters)
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
 endpoint = embedder.embed(startpoint)
 
@@ -142,7 +140,7 @@ def test(test_data,use_deepset=False):
     return result
     
 N = 6000
-if mini: N = 2000
+if mini: N = 6000
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 results = []

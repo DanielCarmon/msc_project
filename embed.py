@@ -39,7 +39,6 @@ class BaseEmbedder:
         ret.params = self.params + other.params
         try:
             ret.load_weights = other.load_weights
-            ret.embed_dim = other.embed_dim
             ret.weight_file = other.weight_file
             ret.sess = other.sess
             ret.pretrained = other.pretrained
@@ -92,45 +91,6 @@ class DeepSetEmbedder1(BaseEmbedder):
         self.params += (self.phi.params+self.rho.params+self.psi.params)
         return out
     ''
-
-
-class ImgEmbedder(BaseEmbedder):
-    """
-    Embeds a batch of n [d,d,3] images to n [1,embed_dim] vectors
-    """
-
-    def __init__(self, data_params):
-        self.n, self.img_dim = data_params
-        self.params = []
-
-    def embed(self, x):
-        img_dim, num_col = self.img_dim, 3
-        x_embed = tf.reshape(x, [self.n, (img_dim ** 2) * num_col])  # [img_dim**2,num_col]
-        x_embed = tf.Print(x_embed, [x_embed])
-        x_embed = tf.identity(x_embed, name='x_embed')
-        return x_embed
-
-    """
-    def embed(self, x):
-        # encode pixel coordinates
-        img_dim = self.img_dim
-        inds = np.arange(0, img_dim)
-        prefix0 = np.tile(inds, [img_dim])
-        prefix1 = np.repeat(inds, [img_dim] * img_dim)
-        prefix = np.vstack((prefix0, prefix1)).T
-        tf_prefix = tf.constant(prefix)  # [img_dim**2,2]
-        tf_prefix = tf.cast(tf_prefix, tf.float32)
-        # lambda = 0.1 # hyper-parameter for importance of 2d closeness
-        # tf_prefix = lambda * tf_prefix / (img_dim ** 2)
-        tf_prefix_tiled = tf.tile(tf_prefix[tf.newaxis, :], [self.n, 1,])
-        x_embed = tf.reshape(x, [self.n, (img_dim ** 2)*3])  # [self.n, img_dim**2 * num_col]
-        x_embed = tf.concat([tf_prefix_tiled, x_embed], axis=1)  # concat x,y coords to d
-        x_embed = tf.Print(x_embed, [x_embed])
-        x_embed = tf.identity(x_embed, name='x_embed')
-        return x_embed  # [self.n, 5]
-
-    """
-
 
 
 class ProjectionEmbedder(BaseEmbedder):
@@ -411,13 +371,6 @@ class Vgg16Embedder(BaseEmbedder):
             self.fc3l = tf.Print(self.fc3l,[self.fc3l],message="self.fc3l:",summarize=20)
             self.fc3l_norm = my_batch_norm(self.fc3l)
             self.output = self.fc3l_norm
-            #self.probs = tf.nn.softmax(self.fc3l)
-            #self.probs = tf.Print(self.probs,[self.probs],message="probs:",summarize=20)
-            #self.mylayer = tf.Variable(tf.truncated_normal([1000, self.embed_dim], dtype=tf.float32, stddev=1e-1), name='mylayer')
-            #self.params.append(self.mylayer) 
-            #self.output = tf.matmul(self.fc3l_norm,self.mylayer)
-            #self.output = my_batch_norm(self.output)
-            #self.output = tf.nn.relu(self.last)
             self.built = True
         if not self.pretrained:
             if self.weight_file is not None and self.sess is not None:
@@ -426,8 +379,7 @@ class Vgg16Embedder(BaseEmbedder):
         return self.output
 
 class InceptionEmbedder(BaseEmbedder):
-    def __init__(self, weight_file=None, sess=None, embed_dim = 1001,output_layer='logits',new_layer_width=-1):
-        self.embed_dim = embed_dim
+    def __init__(self, weight_file=None, sess=None, output_layer='logits',new_layer_width=-1):
         self.weight_file = weight_file
         self.sess = sess
         self.pretrained = self.built = False
@@ -436,17 +388,14 @@ class InceptionEmbedder(BaseEmbedder):
         self.params = []
         self.output_layer = output_layer
         self.endpoints = 0
+        self.inception_dim = 1001
     def embed(self, x, for_training = False):
         print x
-        self.logits,self.activations_dict = inception.inference(x,1001,for_training=for_training)
+        self.logits,self.activations_dict = inception.inference(x,self.inception_dim,for_training=for_training)
         variable_averages = tf.train.ExponentialMovingAverage(inception.MOVING_AVERAGE_DECAY)
         variables_to_restore = variable_averages.variables_to_restore() # dictionary
         self.param_dict = variables_to_restore
         self.params = [param for param in self.param_dict.values()]
-        # self.last_layer = tf.Variable(tf.random_normal([1001, self.embed_dim], stddev=0.1),
-        #                              name="last_layer")
-        # self.output = tf.matmul(self.logits,self.last_layer)
-        # self.params.append(self.last_layer)
         output_layer_name = self.output_layer
         try:
             self.output = self.activations_dict[output_layer_name]; print "using '{}' as output layer".format(output_layer_name)
@@ -457,7 +406,7 @@ class InceptionEmbedder(BaseEmbedder):
             exit()
         if self.new_layer_width!=-1: #
             initializer = tf.contrib.layers.xavier_initializer()
-            self.new_layer_w = tf.get_variable('new_layer_w',[self.embed_dim,self.new_layer_width],initializer=initializer)
+            self.new_layer_w = tf.get_variable('new_layer_w',[self.inception_dim,self.new_layer_width],initializer=initializer)
             self.output = tf.matmul(self.output,self.new_layer_w)
         return self.output
     def load_weights(self,sess):

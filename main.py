@@ -41,7 +41,6 @@ data_params = None
 k = None
 embedder = None
 clusterer = None
-tf_clustering = None
 def save(obj,fname):
     pickle_out = open(fname+'.pickle','wb+')
     pickle.dump(obj,pickle_out)
@@ -72,20 +71,25 @@ def my_parser(argv):
     ret['deepset'] = as_bool(ret['deepset']) 
     #ret['use_tg'] = as_bool(ret['use_tg']) 
     ret['use_tg'] = True
-    ret['init'] = 2
     ret['obj'] = 'L2'
+    #ret['obj'] = 'nmi'
     ret['cluster'] = 'em'
     ret['cluster_hp'] = 1e-2
     if not 'train_params' in ret.keys():
         ret['train_params'] = 'e2e'
+    if not 'init' in ret.keys():
+        ret['init'] = 2
+    name = ret['name']
+    if name.endswith('last'):
+        ret['train_params'] = 'last'
+    if name.startswith('init'):
+        ret['init'] = int(name[5])
     ret['restore_last'] = True
     log_print('using options:',ret)
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
     if ret['cluster'] == "kmeans":
         ret['cluster'] = GDKMeansClusterer2
-    if not 'n_test_classes' in ret.keys():
-        ret['n_test_classes'] = 100
     return ret
 
 def linenum():
@@ -104,11 +108,9 @@ def trim(vec, digits=3):
 
 
 def run(arg_dict):
-    global embedder, clusterer, tf_clustering, data_params, k, sess
+    global embedder, clusterer, data_params, k, sess
     d = 299
-    k = 2
-    if 'n_train_classes' in arg_dict.keys():
-        k = arg_dict['n_train_classes']
+    k = arg_dict['n_train_classes']
     name = arg_dict['name']
     dataset_flag = arg_dict['dataset']
     mini = arg_dict['data_split'] > 2
@@ -120,29 +122,24 @@ def run(arg_dict):
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
     recompute_ys = dataset_flag==2 # only recompute for products dataset
-    n_ebay_batches = 50
+    n_ebay_batches = 50 # relevant for ebay data refreshing
     clst_module = arg_dict['cluster']
     hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
     model_lr = arg_dict['model_lr']
     use_tg = arg_dict['use_tg']
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
-    #vgg_weight_path = '/specific/netapp5_2/gamir/carmonda/research/vision/vgg16_weights.npz'
-    #weight_path = '/home/d/Desktop/uni/research/vgg16_weights.npz'
-    #embed_dim = 128
-    # embedder = Vgg16Embedder(vgg_weight_path,sess=sess,embed_dim=embed_dim)
-    embed_dim = 1001
     init = arg_dict['init']
     list_final_clusters = [100,98,512,102]
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
     if mini:
         n_final_clusters = n_final_clusters/2
-    embedder = InceptionEmbedder(inception_weight_path,embed_dim=embed_dim,new_layer_width=n_final_clusters)
+    embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters)
    
     if arg_dict['deepset']:
         embedder_pointwise = embedder
         embedder = DeepSetEmbedder1(n_final_clusters).compose(embedder_pointwise) # Under Construction!
-    clusterer = clst_module([n, embed_dim], k, hp, n_iters=arg_dict['n_iters'],init=init)
+    clusterer = clst_module([n,n_final_clusters], k, hp, n_iters=arg_dict['n_iters'],init=init)
 
     log_print(now(),': building model for',name)
     log_grads = False
@@ -223,7 +220,7 @@ def run(arg_dict):
     i_log = 100 
     n_train_iters = 6000
     if mini:
-        n_train_iters = 4000
+        n_train_iters = 6000
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []

@@ -201,7 +201,7 @@ class GDKMeansPlusPlus(BaseClusterer):
         self.curr_step = 0
         self.n_iters = n_iters
         self.k = k
-        GDKMeansClusterer2.k = k  # todo: fix this
+        GDKMeansClusterer2.k = k  
         self.n, self.d = tuple(data_params) 
         self.planted_values = planted_values
         self.grad_log = []
@@ -439,6 +439,7 @@ class EMClusterer(BaseClusterer):
         1: Fixed-Random init. Sample once at compile time and then allways use this.
         2: Kmeans++ init. A data-driven init.
         '''
+        pdb.set_trace()
         if self.init==1:    
             np.random.seed(2018)
             rand_init = np.random.normal(size=[self.k,self.d])
