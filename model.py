@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from nn import *
 import pdb
 from tqdm import tqdm
 from functools import reduce
@@ -25,23 +24,29 @@ def my_entropy(p_vals):
     return -tf.reduce_sum(p_vals*logs)
 
 def my_nmi(y_assign_gt,y_assign_predict):
+    print 'meow'
     ''' args: two row-stochastic matrices of shape [n,k]'''
     n = tf.reduce_sum(y_assign_gt) # row-stochastic with n rows...
+    print 'meow'
     # get probabilities from assignments:
     eps = 1e-3
     joint_prob_mat = tf.matmul(y_assign_gt,y_assign_predict,transpose_a=True)/n # [k,k]
+    print 'meow'
     p_vals1 = tf.reduce_sum(y_assign_gt,axis=0) + eps
     p_vals1 = p_vals1/tf.reduce_sum(p_vals1) # normalize
     p_vals2 = tf.reduce_sum(y_assign_predict,axis=0) + eps
     p_vals2 = p_vals2/tf.reduce_sum(p_vals2) # normalize
     p_vals_joint = tf.reshape(joint_prob_mat,[-1]) + eps
     p_vals_joint = p_vals_joint/tf.reduce_sum(p_vals_joint) # normalize
+    print 'meow'
     # calculate entropies:
     entropy1 = my_entropy(p_vals1)
     entropy2 = my_entropy(p_vals2)
     entropy_joint = my_entropy(p_vals_joint)
+    print 'meow'
     # use mutual info identity:
     mutual_info = entropy1+entropy2-entropy_joint
+    print 'meow'
     # return normalized: 
     return mutual_info/tf.sqrt(entropy1*entropy2)
 
@@ -98,10 +103,9 @@ class Model:
         self.loss = 1.*self.loss
         print 'building optimizer'
         self.train_step = self.optimizer.minimize(self.loss)
-        if not isinstance(embedder,ProjectionEmbedder):
-            print 'initializing global variables'
-            self.sess.run(tf.global_variables_initializer())
-            self.embedder.load_weights(self.sess)
+        print 'initializing global variables'
+        self.sess.run(tf.global_variables_initializer())
+        self.embedder.load_weights(self.sess)
     @staticmethod
     def L2_loss(y_pred, y, use_tg):
         '''
@@ -122,6 +126,7 @@ class Model:
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
     @staticmethod
     def NMI_loss(y_pred,y,use_tg):
+        print 'in NMI_loss'
         compare = y_pred[-1]# no support for tg yet
         return -my_nmi(y,compare) # optimizer should minimize this
     @staticmethod

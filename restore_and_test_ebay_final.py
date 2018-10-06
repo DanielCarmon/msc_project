@@ -43,7 +43,7 @@ arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 dataset_flag = 2
-use_deepset = as_bool(arg_dict['deepset'])
+use_permcovar = as_bool(arg_dict['permcovar'])
 test_last = bool(arg_dict['data_split'])
 
 if test_last:
@@ -75,20 +75,20 @@ if arg_dict['embed']=='True': # we use gpu machine to embed the data to a [N,512
     startpoint = tf.placeholder(tf.float32,[None,d,d,3])
     endpoint = embedder.embed(startpoint)
 
-    if use_deepset:
+    if use_permcovar:
         embedder_pointwise = embedder
-        embedder = DeepSetEmbedder1(embed_dim)
+        embedder = PermCovarEmbedder1(embed_dim)
         n = data[0].shape[0]
         shape = [n,embed_dim]
-        deepset_startpoint = tf.placeholder(tf.float32,shape=shape) 
-        deepset_endpoint = embedder.embed(deepset_startpoint)
+        permcovar_startpoint = tf.placeholder(tf.float32,shape=shape) 
+        permcovar_endpoint = embedder.embed(permcovar_startpoint)
 
     sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver(tf.global_variables())
 
     print 'embedding ebay products with {}, checkpoint #{}. test split?{}'.format(name,i_ckpt,str(test_last))
     ckpt_path = weight_dir+'/step_{}'.format(i_ckpt)+'.ckpt'
-    if use_deepset: print 'WARNING: using deepset' 
+    if use_permcovar: print 'WARNING: using permcovar' 
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
     saver.restore(sess,ckpt_path)
 
@@ -130,11 +130,11 @@ if arg_dict['embed']=='True': # we use gpu machine to embed the data to a [N,512
     except:
         traceback.print_exc()
         pdb.set_trace()
-    if use_deepset:
-        global deepset_startpoint,deepset_endpoint
+    if use_permcovar:
+        global permcovar_startpoint,permcovar_endpoint
         print 'before ds module:',np_embeddings
-        feed_dict = {deepset_startpoint: np_embeddings}
-        np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
+        feed_dict = {permcovar_startpoint: np_embeddings}
+        np_embeddings = sess.run(permcovar_endpoint,feed_dict=feed_dict)
         print 'after ds module:',np_embeddings
 
 else: # we use cpu to cluster embedding matrix

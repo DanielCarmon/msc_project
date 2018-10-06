@@ -17,14 +17,14 @@ import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 from tqdm import tqdm
 from datetime import datetime
-import pdb
+import pdb #line was here
 import sys
 import time
 import traceback
 import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
-from sklearn.metrics import normalized_mutual_info_score as nmi
+from sklearn.metrics import normalized_mutual_info_score as skl_nmi
 import numpy as np
 
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
@@ -46,46 +46,30 @@ def save(obj,fname):
     pickle.dump(obj,pickle_out)
     pickle_out.close()
 
-def as_bool(flag):
-    if flag=='True':
-        return True
-    elif flag=='False':
-        return False
-    log_print('Error at parsing occured')
-    pdb.set_trace()
-
 def my_parser(argv):
-    ret = {}
+    ret = {} 
+    # default opts:
+    ret['use_tg'] = True # aux gradients
+    ret['obj'] = 'L2' # distance between pred and gt
+    ret['cluster'] = 'em' # cluster inference module
+    ret['cluster_hp'] = 1e-2 # bandwidth for em, step-size for km
+    ret['params'] = 'e2e' # what params to train
+    ret['init'] = 2 # init method for clusterer
+    ret['restore_last'] = True # load params from last ckpt
+    # override defaults:
     n = len(argv)
-    pdb.set_trace()
     for i in range(n):
         if argv[i][:2]=="--": # is flag
-            val = argv[i+1]
+            key = argv[i][2:]
+            val_raw = argv[i+1]
             try:
-                val = int(val)
-            except:
-                try:
-                    val = float(val)
-                except:
-                    val = argv[i+1]
-            ret[argv[i][2:]]=val
-    ret['deepset'] = as_bool(ret['deepset']) 
-    #ret['use_tg'] = as_bool(ret['use_tg']) 
-    ret['use_tg'] = True
-    ret['obj'] = 'L2'
-    #ret['obj'] = 'nmi'
-    ret['cluster'] = 'em'
-    ret['cluster_hp'] = 1e-2
-    if not 'train_params' in ret.keys():
-        ret['train_params'] = 'e2e'
-    if not 'init' in ret.keys():
-        ret['init'] = 2
+                val = eval(val_raw)
+            except: # val should be string
+                val = val_raw 
+            ret[key]=val
+    # format opts:        
     name = ret['name']
-    if name.endswith('last'):
-        ret['train_params'] = 'last'
-    if name.startswith('init'):
-        ret['init'] = int(name[5])
-    ret['restore_last'] = True
+    ret['permcovar'] = bool(ret['permcovar']) 
     log_print('using options:',ret)
     if ret['cluster'] == "em":
         ret['cluster'] = EMClusterer
@@ -111,11 +95,10 @@ def trim(vec, digits=3):
 def run(arg_dict):
     global embedder, clusterer, data_params, k, sess
     d = 299
-    k = arg_dict['n_train_classes']
+    k = arg_dict['n_classes']
     name = arg_dict['name']
     dataset_flag = arg_dict['dataset']
-    mini = arg_dict['data_split'] > 2
-    assert ('mini' in name) == mini # dont overwrite models
+    mini = arg_dict['split'] > 2
     log_print(now(),': started loading data for',name,'...')
     init_train_data(dataset_flag,mini=mini,name=name)
     log_print(now(),': finished loading data for',name,'...')
@@ -123,10 +106,10 @@ def run(arg_dict):
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
     recompute_ys = dataset_flag==2 # only recompute for products dataset
-    n_ebay_batches = 50 # relevant for ebay data refreshing
+    n_ebay_batches = 50 # number of preprocessed samples for products dataset
     clst_module = arg_dict['cluster']
-    hp = arg_dict['cluster_hp'] # hyperparam. bandwidth for em, step-size for km
-    model_lr = arg_dict['model_lr']
+    hp = arg_dict['cluster_hp'] 
+    lr = arg_dict['lr']
     use_tg = arg_dict['use_tg']
     data_params = [n, d]
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
@@ -137,15 +120,15 @@ def run(arg_dict):
         n_final_clusters = n_final_clusters/2
     embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters)
    
-    if arg_dict['deepset']:
+    if arg_dict['permcovar']:
         embedder_pointwise = embedder
-        embedder = DeepSetEmbedder1(n_final_clusters).compose(embedder_pointwise) # Under Construction!
+        embedder = PermCovarEmbedder1(n_final_clusters).compose(embedder_pointwise) # Under Construction!
     clusterer = clst_module([n,n_final_clusters], k, hp, n_iters=arg_dict['n_iters'],init=init)
 
     log_print(now(),': building model for',name)
     log_grads = False
     obj = arg_dict['obj']
-    model = Model(data_params, embedder, clusterer, model_lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads)
+    model = Model(data_params, embedder, clusterer, lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads)
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     n_offset = 0 # no. of previous checkpoints
     try: # restore last ckpt
@@ -203,29 +186,29 @@ def run(arg_dict):
                 clustering = clustering_history[-1]
                 # ys_pred = np.matmul(clustering,clustering.T)
                 # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
-                nmi_score = nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
+                nmi_score = skl_nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
                 log_print('after: ',nmi_score)
                 nmi_score_history.append(nmi_score)
                 loss_history.append(loss)
                 log_print("clustring diffs:",clustering_diffs)
             except:
-                log_print('error occured')
+                log_print('error occured with: ',name)
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
-                pdb.set_trace()
+                print 'exception for:',name 
         log_print('train_nmis:',nmi_score_history)
         return nmi_score_history,test_scores
 
     log_print('begin training')
     # end-to-end training:
     i_log = 100 
-    n_train_iters = 6000
+    n_train_iters = 30
     if mini:
         n_train_iters = 6000
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
-    if arg_dict['train_params']!="last":
+    if arg_dict['params']!="last":
         try:
             train_nmis,test_scores_e2e = train(model,hyparams,name)
         except:
@@ -235,13 +218,13 @@ def run(arg_dict):
     else:
         log_print('not training e2e')
         log_print('starting last-layer training')
-        if arg_dict['deepset']:
-            filter_cond = lambda v: 'DeepSet' in str(v)
+        if arg_dict['permcovar']:
+            filter_cond = lambda v: 'PermCovar' in str(v)
         else:
             filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
-        deepset_params = filter(filter_cond,tf.global_variables())
+        permcovar_params = filter(filter_cond,tf.global_variables())
         last_layer_params = filter(filter_cond,tf.global_variables())
-        if not arg_dict['deepset']: last_layer_params.append(embedder.new_layer_w)
+        if not arg_dict['permcovar']: last_layer_params.append(embedder.new_layer_w)
         model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
         train_nmis,test_scores_ll = train(model,hyparams,name)
     #save_path = embedder.save_weights(sess)

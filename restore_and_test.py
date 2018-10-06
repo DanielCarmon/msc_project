@@ -50,7 +50,7 @@ argv = sys.argv
 arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 dataset_flag = arg_dict['dataset']
-use_deepset = as_bool(arg_dict['deepset'])
+use_permcovar = as_bool(arg_dict['permcovar'])
 data_split = int(arg_dict['data_split'])
 mini = data_split>2
 name = arg_dict['name']
@@ -72,19 +72,19 @@ embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clust
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
 endpoint = embedder.embed(startpoint)
 
-if use_deepset:
+if use_permcovar:
     embedder_pointwise = embedder
-    embedder = DeepSetEmbedder1(n_final_clusters)
+    embedder = PermCovarEmbedder1(n_final_clusters)
     n = data[0].shape[0]
     shape = [n,n_final_clusters]
-    deepset_startpoint = tf.placeholder(tf.float32,shape=shape) 
-    deepset_endpoint = embedder.embed(deepset_startpoint)
+    permcovar_startpoint = tf.placeholder(tf.float32,shape=shape) 
+    permcovar_endpoint = embedder.embed(permcovar_startpoint)
 
 sess.run(tf.global_variables_initializer())
 saver = tf.train.Saver(tf.global_variables())
 
 KMeans = cluster.KMeans
-def test(test_data,use_deepset=False): 
+def test(test_data,use_permcovar=False): 
     tic = dcdb.now()
     global startpoint,endpoint
     log_print(name+': '+'begin test')
@@ -119,11 +119,11 @@ def test(test_data,use_deepset=False):
             log_print(name+': '+'finished inception embedding')
             np_embeddings = np.concatenate(embedding_list)
             break
-    if use_deepset:
-        global deepset_startpoint,deepset_endpoint
+    if use_permcovar:
+        global permcovar_startpoint,permcovar_endpoint
         log_print(name+': '+'before ds module:',np_embeddings)
-        feed_dict = {deepset_startpoint: np_embeddings}
-        np_embeddings = sess.run(deepset_endpoint,feed_dict=feed_dict)
+        feed_dict = {permcovar_startpoint: np_embeddings}
+        np_embeddings = sess.run(permcovar_endpoint,feed_dict=feed_dict)
         log_print(name+': '+'after ds module:',np_embeddings)
     # 2) cluster
     log_print(name+': '+'clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...')
@@ -161,14 +161,14 @@ except:
 for i in range_checkpoints:
     log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(data_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
-    if use_deepset: log_print('WARNING: using deepset' )
+    if use_permcovar: log_print('WARNING: using permcovar' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
     try:
         saver.restore(sess,ckpt_path)
     except:
         log_print(name+': restore from '+ckpt_path+' failed. exiting program')
         exit(0)
-    result = test(data,use_deepset)
+    result = test(data,use_permcovar)
     results.append(result)
     np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 
     log_print(name+': '+'checkpoint result:',result)

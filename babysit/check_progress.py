@@ -6,6 +6,7 @@ import numpy as np
 import pdb
 import signal
 import sys
+import re
 
 def signal_handler(sig, frame):
     print('Exiting on Ctrl+C')
@@ -19,7 +20,8 @@ while True:
     lines = open(fname).readlines()
     paths = []
     for line in lines:
-        path = project_dir+'/'+line.split("'")[-2]
+        model_name = '_'+'_'.join(re.split(',|:',line))
+        path = project_dir+'/'+model_name
         paths.append(path)
     lines_to_print = ['checking progress for jobs in ',fname]
     for path in paths:
