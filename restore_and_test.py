@@ -31,19 +31,32 @@ def as_bool(s):
     if s=='True': return True
 
 def my_parser(argv):
-    ret = {}
+    ret = {} 
+    # default opts:
+    ret['use_tg'] = True # aux gradients
+    ret['obj'] = 'L2' # distance between pred and gt
+    ret['cluster'] = 'em' # cluster inference module
+    ret['cluster_hp'] = 1e-2 # bandwidth for em, step-size for km
+    ret['init'] = 2 # init method for clusterer
+    # override defaults:
     n = len(argv)
     for i in range(n):
         if argv[i][:2]=="--": # is flag
-            val = argv[i+1]
+            key = argv[i][2:]
+            val_raw = argv[i+1]
             try:
-                val = int(val)
-            except:
-                try:
-                    val = float(val)
-                except:
-                    val = argv[i+1]
-            ret[argv[i][2:]]=val
+                val = eval(val_raw)
+            except: # val should be string
+                val = val_raw 
+            ret[key]=val
+    # format opts:        
+    name = ret['name']
+    ret['permcovar'] = bool(ret['permcovar']) 
+    log_print('using options:',ret)
+    if ret['cluster'] == "em":
+        ret['cluster'] = EMClusterer
+    if ret['cluster'] == "kmeans":
+        ret['cluster'] = GDKMeansClusterer2
     return ret
 
 argv = sys.argv
@@ -51,13 +64,13 @@ arg_dict = my_parser(argv)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 dataset_flag = arg_dict['dataset']
 use_permcovar = as_bool(arg_dict['permcovar'])
-data_split = int(arg_dict['data_split'])
-mini = data_split>2
+eval_split = int(arg_dict['eval_split'])
+mini = eval_split>2
 name = arg_dict['name']
 log_print(name+': '+'Loading data... ')
-data = get_data(data_split,dataset_flag)
+data = get_data(eval_split,dataset_flag)
 log_print(name+': '+'finished')
-split_name = ['train','test','valid','minitrain','minitest'][data_split]
+split_name = ['train','test','valid','minitrain','minitest'][eval_split]
 fname_prefix = split_name+'_data_scores'
 gpu = arg_dict['gpu']
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -159,7 +172,7 @@ except:
     range_checkpoints = default_range_checkpoints
     to_append = []
 for i in range_checkpoints:
-    log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(data_split)))
+    log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(eval_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_permcovar: log_print('WARNING: using permcovar' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.

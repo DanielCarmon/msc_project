@@ -8,9 +8,6 @@ class BaseClusterer():
         for _ in tqdm(range(self.n_iters), desc="Building {} Layers".format(self.__class__.__name__)):
             self.update_params()
         ys_assign_history = tf.convert_to_tensor(self.history_list)  # [n_iters,n,k] tensor of membership matrices
-        # history_tensor = tf.Print(history_tensor,[0],"Finished Parameter Updates")
-        #self.pred = self.get_clustering_matrices(history_tensor)  # [n_iters,n,n] tensor of similarity matrices
-        #self.pred = tf.identity(self.pred, name="PredictionHistory")
         return ys_assign_history
 
     @staticmethod
@@ -67,7 +64,6 @@ class GDKMeansPlusPlus(BaseClusterer):
         global inner_prod_mat
         inner_prod_mat = tf.matmul(a, tf.transpose(b))
         dist_mat = (-2 * inner_prod_mat + norms1) + norms2
-        # dist_mat = tf.clip_by_value(dist_mat,clip_value_min=0,clip_value_max=1e+100) # for numerical stability. sometimes 0 is replaced by -epsilon. This instability causes a nan when we take a sqrt at the next line.
         return dist_mat
 
     @staticmethod
@@ -108,31 +104,21 @@ class GDKMeansPlusPlus(BaseClusterer):
     @staticmethod
     def init_first_centroid(data):
         old_centroids = data[0, :][None, :]  # no need to permute since feeded data is already permuted
-        # eps = 1e-10
-        # old_centroids += eps*tf.cast(tf.constant(np.random.rand(1,3)),tf.float32)
         return old_centroids
 
     def update_params(self):  # overrides super class method
         self.curr_step += 1
         cost = self.obj_f(self.c, self.x)
-        #cost = tf.Print(cost, [cost, self.x], 'cost')
-        #cost = tf.constant(1.) * cost
         self.cost_log.append(cost)
-        # cost = nan_alarm(cost)
         grads = tf.gradients(cost, self.c)[0]
-        # grads = nan_alarm(grads)
         self.grad_log += [grads]
         maxgrad = tf.reduce_max(grads)
         self.maxgrad_history.append(maxgrad)
-        #mu = self.learn_rate / np.sqrt(self.curr_step)
         mu = self.learn_rate
-        # self.c = tf.Print(self.c,[self.c],"before")
         old = self.c
         self.c = self.c - mu * grads  # update
         diff = tf.reduce_sum((old-self.c)**2)
         self.diff_history.append(diff)
-        # self.c = tf.Print(self.c,[self.c],"after")
-        # self.c = tf.Print(self.c,[""],"--------{}--------".format(str(self.curr_step)))
         ""
         self.history_list.append(self.get_membership_matrix(self.c, self.x))  # log
     
@@ -153,14 +139,14 @@ class GDKMeansPlusPlus(BaseClusterer):
         membership_mat = tf.nn.softmax(inv_tmp * (-distance_mat), 1)
         return membership_mat
 
+
 class EMClusterer(BaseClusterer):
     def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20,init=0):
         self.n_iters = n_iters
         self.bandwidth = bandwidth
         self.init = init
-        self.k = k
-        self.n, self.d = tuple(data_params)
-        # self.x = tf.placeholder(tf.float32,[self.n,self.d]) # rows are data points
+        self.k = k # no. clusters
+        self.n, self.d = tuple(data_params) # n = batch size, d = data dim
 
     def set_data(self, x):
         #x = tf.Print(x,[x],'input x:')
@@ -169,12 +155,14 @@ class EMClusterer(BaseClusterer):
 
     def init_params(self):
         '''
-        different cases of self.init explained:
+        cases of self.init:
         0: Random init
         1: Fixed-Random init. Same random init every call. randomness sampled at compile time
         2: Soft-Kmeans++ init. 
         '''
-        if self.init==1:    
+        if self.init==0:
+            self.theta = tf.random_normal([self.k, self.d], seed=2018, name='theta_0') # seed fixed randomness at sess level. every sess run this gives a new value
+        elif self.init==1:    
             np.random.seed(2018)
             rand_init = np.random.normal(size=[self.k,self.d])
             self.theta = tf.constant(rand_init,name = 'theta_0')
@@ -186,9 +174,6 @@ class EMClusterer(BaseClusterer):
                 old_centroids = GDKMeansPlusPlus.centroid_choice_layer(data,old_centroids)
             self.theta = old_centroids
 
-        else:
-            self.theta = tf.random_normal([self.k, self.d], seed=2017, name='theta_0')
-        #self.theta = tf.get_variable('theta', shape=(self.k, self.d), initializer=tf.contrib.layers.xavier_initializer())
         self.history_list = []
         self.diff_history = []
     def update_params(self):
@@ -196,34 +181,25 @@ class EMClusterer(BaseClusterer):
         old_theta = self.theta
         self.theta = self.infer_theta(self.x, self.z)  # update
         diff = tf.reduce_sum((old_theta-self.theta)**2)
-        ##diff = tf.Print(diff,[diff],"diff:")
         self.diff_history.append(diff)
-        # self.theta = tf.Print(self.theta,[z],"Z:")
-        # self.theta = tf.Print(self.theta,[selftheta],"Theta:")
         self.history_list.append(self.z)  # log
 
     @staticmethod
     def infer_theta(x, z):
-        #x = tf.Print(x,[x[0],x[1],"|",z[0],z[1]],"Entered infer_theta with x,z = ")
         clust_sums = tf.matmul(tf.transpose(z), x, name='clust_sums')  # [k,d]
-        #clust_sums = tf.Print(clust_sums, [clust_sums], "clust_sums",summarize=100)
         clust_sz = tf.reduce_sum(z, axis=0, name='clust_sz')  # [k]
         eps = 1e-1
         clust_sz+=eps
-        #clust_sz = tf.Print(clust_sz, [clust_sz], "clust_sz",summarize=100)
         normalizer = tf.matrix_inverse(tf.diag(clust_sz), name='normalizer')  # [k,k]
-        # normalizer = tf.Print(normalizer,[normalizer[0],normalizer[1]],"normalizer:")
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids
-        # theta = tf.Print(theta,[theta[0],theta[1]],"inferred Theta:")
         return theta
     @staticmethod
     def infer_z(x, theta, bandwidth):
-        #x = tf.Print(x,[x[0],x[1],"|",theta[0],theta[1]],"Entered infer_z func with x,theta = ")
         outer_subtraction = tf.subtract(x[:, :, None], tf.transpose(theta), name='out_sub')  # [n,d,k]
         z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
         z = tf.nn.softmax(bandwidth*z, axis=1)
-        check = tf.is_nan(tf.reduce_sum(z))
+        #check = tf.is_nan(tf.reduce_sum(z))
         #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z

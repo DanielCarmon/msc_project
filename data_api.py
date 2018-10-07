@@ -34,7 +34,7 @@ train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_b
                    '/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'
                    ]    
 train_classes_lst =[range(1,101),range(1,99),range(1,513),range(1,103)] 
-szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)]
+szs_lst = [np.array(pickle.load(open(data_dir_+'/lengths.pickle'))[:len(train_classes_)]) for data_dir_,train_classes_ in zip(train_data_dirs,train_classes_lst)]
 offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst 
 train_data = None # store data on RAM for faster access
 fixed_ys = None
@@ -70,6 +70,7 @@ def init_train_data(dataset_flag,mini=False,name=''):
     global train_data,fixed_ys,train_data_dir,train_classes
     train_data_dir = train_data_dirs[dataset_flag]
     train_classes = train_classes_lst[dataset_flag]
+    pdb.set_trace()
     if mini: # remove half of classes
         train_data = np.load(train_data_dir+'/mini_train_data.npy')
         train_classes = train_classes[:len(train_classes)/2]
@@ -93,6 +94,9 @@ def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     try:
         xs = train_data[final_inds]
     except:
+        exc =  sys.exc_info()
+        traceback.print_exception(*exc)
+        print 'exception for:',name 
         log_print('excpetion with train data load')
         pdb.set_trace()
 

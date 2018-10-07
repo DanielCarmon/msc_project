@@ -94,7 +94,7 @@ def trim(vec, digits=3):
 
 def run(arg_dict):
     global embedder, clusterer, data_params, k, sess
-    d = 299
+    d = 299 # inception input size = [d,d]
     k = arg_dict['n_classes']
     name = arg_dict['name']
     dataset_flag = arg_dict['dataset']
@@ -204,7 +204,7 @@ def run(arg_dict):
     i_log = 100 
     n_train_iters = 30
     if mini:
-        n_train_iters = 6000
+        n_train_iters = 2000
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
