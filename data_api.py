@@ -4,6 +4,7 @@ import os
 import pickle
 import signal
 import time
+from control.dcdb import *
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -70,16 +71,16 @@ def init_train_data(dataset_flag,mini=False,name=''):
     global train_data,fixed_ys,train_data_dir,train_classes
     train_data_dir = train_data_dirs[dataset_flag]
     train_classes = train_classes_lst[dataset_flag]
-    pdb.set_trace()
     if mini: # remove half of classes
         train_data = np.load(train_data_dir+'/mini_train_data.npy')
         train_classes = train_classes[:len(train_classes)/2]
     else:
         try:
             train_data = np.load(train_data_dir+'/train_data.npy')
-        except:
-            log_print('exception when loading train data')
-            pdb.set_trace()
+        except MemoryError:
+            timestamp = now()
+            log_print(str(timestamp)+': memory error for '+name+' when loading train data')
+            exit()
 
 def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     global fixed_ys

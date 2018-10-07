@@ -60,7 +60,6 @@ class Model:
         self.clusterer = clusterer
         self.n, self.d = tuple(data_params)
         if is_img:
-            #self.x = tf.placeholder(tf.float32, [self.n, self.d, self.d, 3])  # rows are data points
             self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
         else:
             self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
@@ -69,12 +68,13 @@ class Model:
         self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
         self.y = tf.cast(self.y, tf.float32)
         self.for_training = for_training
-        self.x_embed = self.embedder.embed(self.x)
+        self.x_embed = self.embedder.embed(self.x) # embeddings tensor
         ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
         self.lr = lr
         self.optimizer = self.optimizer_class(lr)
-        self.clusterer.set_data(self.x_embed)
-        self.clustering = self.clusterer.infer_clustering()
+        self.clusterer.set_data(self.x_embed) # compose clusterer on top of embedder
+        self.clustering = self.clusterer.infer_clustering() # get output clustering
+        # compose loss func on top of output clustering:
         if obj=='L2':
             self.loss = self.L2_loss(self.clustering, self.y, use_tg)
         elif obj=='nmi':
@@ -97,7 +97,6 @@ class Model:
                 print 'regularizing ',param
                 regularizer += tf.nn.l2_loss(param)
         self.loss = beta*regularizer + self.loss
-        self.loss = 1.*self.loss
         print 'building optimizer'
         self.train_step = self.optimizer.minimize(self.loss)
         print 'initializing global variables'
@@ -126,6 +125,3 @@ class Model:
         print 'in NMI_loss'
         compare = y_pred[-1]# no support for tg yet
         return -my_nmi(y,compare) # optimizer should minimize this
-    @staticmethod
-    def stam(x, y):
-        return tf.reduce_sum(x)+tf.reduce_sum(y)
