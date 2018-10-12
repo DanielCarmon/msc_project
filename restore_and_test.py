@@ -17,7 +17,7 @@ import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as nmi
 
-project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed"
+project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 logfile_path = project_dir+'/log_test.txt'
 
 def log_print(*msg):
@@ -60,7 +60,7 @@ def my_parser(argv):
 
 argv = sys.argv
 arg_dict = my_parser(argv)
-inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/inception-v3"
+inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 dataset_flag = arg_dict['dataset']
 use_permcovar = as_bool(arg_dict['permcovar'])
 eval_split = int(arg_dict['eval_split'])
@@ -174,7 +174,7 @@ for i in range_checkpoints:
     log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(eval_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_permcovar: log_print('WARNING: using permcovar' )
-    #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/inception-v3/model.ckpt-157585' # for debug.
+    #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
     try:
         saver.restore(sess,ckpt_path)
     except:

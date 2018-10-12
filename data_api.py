@@ -16,7 +16,7 @@ import pdb
 from scipy.misc import imread, imresize
 rand = np.random.randint
 
-project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed"
+project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 logfile_path = project_dir+'/log_data_api.txt'
 def log_print(*msg):
     with open(logfile_path,'a+') as logfile:

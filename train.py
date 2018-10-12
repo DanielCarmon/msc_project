@@ -27,7 +27,7 @@ from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as skl_nmi
 import numpy as np
 
-project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/'
+project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 logfile_path = project_dir+'/log_train.txt'
 
 def log_print(*msg):
@@ -125,7 +125,7 @@ def run(arg_dict):
     lr = arg_dict['lr'] # base learning-rate for inception
     use_tg = arg_dict['use_tg'] # use aux gradients
     init = arg_dict['init'] # init method for clusterer
-    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/inception-v3" # params pre-trained on ImageNet
+    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3" # params pre-trained on ImageNet
     embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters) # embedding function  
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder

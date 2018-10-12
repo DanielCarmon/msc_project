@@ -21,8 +21,8 @@ def l2_normalize(x):
     normalized = x/norms
     return normalized
 
-inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/inception-v3"
-project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed"
+inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
+project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 
 dataset_flag = 0
 use_permcovar = False
@@ -125,7 +125,7 @@ for name in names:
     i_final = n_existing_ckpts-1
     print 'evaluating recall@k score for {}, checkpoint #{}. test split?{}'.format(name,i_final,str(test_last))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(str(i_log*i_final))+'.ckpt'
-    #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/inception-v3/model.ckpt-157585' # for debug.
+    #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
     saver.restore(sess,ckpt_path)
     results = eval_recalls(data,use_permcovar)
     cp_file_name = project_dir+'/'+name+'_ckpt_{}_recall@k_score.npy'.format(i_final)

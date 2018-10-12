@@ -171,7 +171,7 @@ class InceptionEmbedder(BaseEmbedder):
 
         #global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
     def save_weights(self,sess):
-        save_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/model.ckpt"
+        save_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/model.ckpt"
         if self.saver is None:
             self.saver = tf.train.Saver(self.param_dict)
         print 'checkpoint saved at:', self.saver.save(sess,save_path)
@@ -179,7 +179,7 @@ class InceptionEmbedder(BaseEmbedder):
 
 if __name__ == '__main__':
     sess = tf.InteractiveSession()
-    weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_embed/inception-v3/inception_v3.ckpt" # params pre-trained on ImageNet
+    weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/inception_v3.ckpt" # params pre-trained on ImageNet
     embedder = InceptionEmbedder(weight_path,new_layer_width=100)
     np.random.seed(137)
     const = np.random.random((100,299,299,3))
