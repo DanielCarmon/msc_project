@@ -15,12 +15,14 @@ signal.signal(signal.SIGINT, signal_handler)
 
 while True:
     #pdb.set_trace()
-    project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project'
+    project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/new_embed'
     fname = sys.argv[1]
     lines = open(fname).readlines()
     paths = []
     for line in lines:
         model_name = '_'+'_'.join(re.split(',|:',line))
+        if model_name.startswith('_eval_split'): 
+            model_name = model_name[13:]
         path = project_dir+'/'+model_name
         paths.append(path[:-1])
     #pdb.set_trace()
@@ -43,4 +45,4 @@ while True:
         lines_to_print.append(path_suff+' --> '+str((last_n,ns)))
     os.system('clear')
     for line in lines_to_print: print line
-    time.sleep(0.1)
+    time.sleep(1)

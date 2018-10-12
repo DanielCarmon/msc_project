@@ -5,7 +5,7 @@ import datetime
 import sys
 import time
 
-project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project'
+project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/new_embed'
 argv = sys.argv
 gpu_ind = int(argv[1])
 machine = argv[2]
