@@ -97,7 +97,7 @@ def run(arg_dict):
     name = arg_dict['name']
     # dataset configs:
     dataset_flag = arg_dict['dataset']
-    mini = arg_dict['split'] > 2 # train on miniset
+    mini = arg_dict['mini']
     log_print(now(),': started loading data for',name,'...')
     init_train_data(dataset_flag,mini=mini,name=name)
     log_print(now(),': finished loading data for',name,'...')
@@ -125,7 +125,7 @@ def run(arg_dict):
     lr = arg_dict['lr'] # base learning-rate for inception
     use_tg = arg_dict['use_tg'] # use aux gradients
     init = arg_dict['init'] # init method for clusterer
-    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3" # params pre-trained on ImageNet
+    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/inception_v3.ckpt" # params pre-trained on ImageNet
     embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters) # embedding function  
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
@@ -134,7 +134,7 @@ def run(arg_dict):
     log_print(now(),': building model for',name)
     log_grads = False
     obj = arg_dict['obj']
-    model = Model(data_params, embedder, clusterer, lr, is_img=True,sess=sess,for_training=False,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
+    model = Model(data_params, embedder, clusterer, lr, is_img=True,sess=sess,for_training=True,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
 
     # ckpt configs:
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
@@ -213,7 +213,7 @@ def run(arg_dict):
     log_print(now(),': begin training')
     # end-to-end training:
     i_log = 100 # save ckpt every i_log iters 
-    n_train_iters = 3000
+    n_train_iters = 30
     if mini:
         n_train_iters = 2000
     hyparams = [n_train_iters*i_log,k,n_,i_log]
@@ -257,3 +257,4 @@ if __name__ == "__main__":
     sess = tf.InteractiveSession()
     run(arg_dict)
     log_print(now(),': at end of train')
+    exit(0)

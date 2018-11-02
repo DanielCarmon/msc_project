@@ -82,7 +82,7 @@ n_final_clusters = list_final_clusters[dataset_flag]
 if mini: n_final_clusters = n_final_clusters/2
 embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters)
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
-endpoint = embedder.embed(startpoint)
+endpoint = embedder.embed(startpoint,is_training=False)
 
 if use_permcovar:
     embedder_pointwise = embedder
