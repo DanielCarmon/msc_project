@@ -131,28 +131,6 @@ class InceptionEmbedder(BaseEmbedder):
         self.output_layer = output_layer
         self.endpoints = 0
         self.inception_dim = 1001
-    def old_embed(self,x,is_training=False):
-        self.output_layer = 'logits'
-        sys.path.insert(0,'/specific/netapp5_2/gamir/carmonda/research/vision/no_batchnorm_version/inception-inference')
-        import inception_model as inception
-        self.logits,self.activations_dict = inception.inference(x,self.inception_dim,for_training=is_training)
-        variable_averages = tf.train.ExponentialMovingAverage(inception.MOVING_AVERAGE_DECAY)
-        variables_to_restore = variable_averages.variables_to_restore() # dictionary
-        self.param_dict = variables_to_restore
-        self.params = [param for param in self.param_dict.values()]
-        output_layer_name = self.output_layer
-        try:
-            self.output = self.activations_dict[output_layer_name]; print "using '{}' as output layer".format(output_layer_name)
-        except:
-            print 'Error. unknown layer name:',output_layer_name
-            print 'Please use one of these names:'
-            print self.activations_dict.keys()
-            exit()
-        if self.new_layer_width!=-1: #
-            initializer = tf.contrib.layers.xavier_initializer()
-            self.new_layer_w = tf.get_variable('new_layer_w',[self.inception_dim,self.new_layer_width],initializer=initializer)
-            self.output = tf.matmul(self.output,self.new_layer_w)
-        return self.output
 
     def embed(self, x, is_training = False):
         network_fn = nets_factory.get_network_fn( # define network
@@ -162,8 +140,6 @@ class InceptionEmbedder(BaseEmbedder):
             is_training=is_training)
         self.logits,self.activations_dict = network_fn(x) # build network
         self.params = tf.trainable_variables()
-        #all_vars = tf.trainable_variables()
-        #self.params = list(filter(lambda s: 'Aux' not in s.name,all_vars))
         self.param_dict = dict([(var.name,var) for var in self.params])
         output_layer_name = self.output_layer
         try:
@@ -181,28 +157,16 @@ class InceptionEmbedder(BaseEmbedder):
         else:
             self.output = self.logits
         return self.output
-    def old_load_weights(self,sess):
-        print 'start loading pre-trained weights'
-        self.weight_file = "/specific/netapp5_2/gamir/carmonda/research/vision/no_batchnorm_version/inception-v3" 
-        ckpt = tf.train.get_checkpoint_state(self.weight_file)  
-        self.saver = tf.train.Saver(self.param_dict)
-        self.saver.restore(sess, ckpt.model_checkpoint_path)  
-        #self.params = filter((lambda x: x!=None),self.params)
 
-        print 'finished loading pre-trained weights'
-
-        global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
     def load_weights(self,sess):
         print 'start loading pre-trained weights'
         vars_to_restore = sess.graph.get_collection('variables')
+        self.batch_norm_vars = list(set(vars_to_restore).difference(set(self.params)))
+        self.batch_norm_vars = list(filter(lambda v: 'new_layer' not in v.name,self.batch_norm_vars))
         restorer = slim.assign_from_checkpoint_fn(
               self.weight_file,
               vars_to_restore,
-              ignore_missing_vars=False)
-        #ckpt = tf.train.get_checkpoint_state(self.weight_file)  
-        #self.saver = tf.train.Saver(self.param_dict)
-        #self.saver.restore(sess, ckpt.model_checkpoint_path)  
-        #self.params = filter((lambda x: x!=None),self.params)
+              ignore_missing_vars=True)
         restorer(sess)
         print 'finished loading pre-trained weights'
 

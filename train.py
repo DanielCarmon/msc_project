@@ -17,7 +17,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 from tqdm import tqdm
 from datetime import datetime
-import pdb #line was here
+import pdb 
 import sys
 import time
 import traceback
@@ -101,7 +101,6 @@ def run(arg_dict):
     log_print(now(),': started loading data for',name,'...')
     init_train_data(dataset_flag,mini=mini,name=name)
     log_print(now(),': finished loading data for',name,'...')
-    #pdb.set_trace()
     list_final_clusters = [100,98,512,102] # categories per dataset
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
     if mini: # train on miniset for val
@@ -126,6 +125,7 @@ def run(arg_dict):
     use_tg = arg_dict['use_tg'] # use aux gradients
     init = arg_dict['init'] # init method for clusterer
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/inception_v3.ckpt" # params pre-trained on ImageNet
+    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
     embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters) # embedding function  
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
@@ -185,18 +185,23 @@ def run(arg_dict):
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # get new batch
             feed_dict = {model.x: xs, model.y: ys}
             try:
-                log_print(now(),': train iter',i,'for',name)
-                #activations_tensors = sess.run(embedder.activations_dict,feed_dict=feed_dict)
-                #log_print(now(),': before embed')
-                #embed = sess.run(model.x_embed,feed_dict=feed_dict) # embeddding for debug. see if oom appears here.
-                #log_print(now(),': after embed')
+                tic = now()
+                log_print(tic,': train iter',i,'for',name)
+                bnvars = embedder.batch_norm_vars
+                bnvar_vals = sess.run(bnvars)
+                n_bnvars = len(bnvars)
+                #for i in range(n_bnvars):
+                #    print bnvars[i]
+                #    print bnvar_vals[i]
+                #pdb.set_trace()
+                print bnvars[10]
+                print sess.run(bnvars)[10]
                 _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
-            #_,activations,parameters,clustering_history,clustering_diffs = sess.run([step,embedder.activations_dict,embedder.param_dict,model.clusterer.history_list,clusterer.diff_history], feed_dict=feed_dict) 
                 clustering = clustering_history[-1]
-                # ys_pred = np.matmul(clustering,clustering.T)
-                # ys_pred = [[int(elem) for elem in row] for row in ys_pred] 
                 nmi_score = skl_nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
-                log_print(now(),': after: ',nmi_score)
+                toc = now()
+                log_print(toc,': after: ',nmi_score)
+                log_print('elapsed:',toc-tic) 
                 nmi_score_history.append(nmi_score)
                 loss_history.append(loss)
                 log_print("clustring diffs:",clustering_diffs)
