@@ -21,10 +21,11 @@ with open(f_path,'w+') as f:
         gpu_ind_to_linenum = lambda i: 7+3*i # number of relevant line in nvidia-smi output
         linenum = gpu_ind_to_linenum(gpu_ind)
         
-        string1 = 'PID {}, GPU {}:'.format(pid,str(gpu_ind))
-        string2 =  string1+' '*(20-len(string1))+lines[linenum]
-        string3 =  '({})'.format(machine)+' '*(20-2-len(machine))+lines[linenum+1]
-        f.write(string2+'\n')
+        #string1 = 'PID {}, GPU {}:'.format(pid,str(gpu_ind))
+        #string2 =  string1+' '*(20-len(string1))+lines[linenum]
+        timestamp = time.strftime("%x")+','+time.strftime("%X")
+        string3 =  '({})({})'.format(machine,gpu_ind)+' '*(15-len(machine))+lines[linenum+1]+' ({})'.format(timestamp)
+        #f.write(string2+'\n')
         f.write(string3+'\n')
         f.flush()
         f.seek(0) # overwrite prev stat
