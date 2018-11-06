@@ -124,7 +124,6 @@ def run(arg_dict):
     lr = arg_dict['lr'] # base learning-rate for inception
     use_tg = arg_dict['use_tg'] # use aux gradients
     init = arg_dict['init'] # init method for clusterer
-    inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/inception_v3.ckpt" # params pre-trained on ImageNet
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
     embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters) # embedding function  
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
@@ -187,15 +186,6 @@ def run(arg_dict):
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)
-                bnvars = embedder.batch_norm_vars
-                bnvar_vals = sess.run(bnvars)
-                n_bnvars = len(bnvars)
-                #for i in range(n_bnvars):
-                #    print bnvars[i]
-                #    print bnvar_vals[i]
-                #pdb.set_trace()
-                print bnvars[10]
-                print sess.run(bnvars)[10]
                 _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
                 clustering = clustering_history[-1]
                 nmi_score = skl_nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
@@ -262,4 +252,4 @@ if __name__ == "__main__":
     sess = tf.InteractiveSession()
     run(arg_dict)
     log_print(now(),': at end of train')
-    exit(0)
+    exit()

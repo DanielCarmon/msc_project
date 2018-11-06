@@ -10,5 +10,7 @@ echo 0
 rm ~/workers.txt # delete old file
 echo 0
 foreach m ( $all_machines )
+  echo 'start sshing: 'm
   ssh carmonda@$m python $script_dir/get_gpus.py
+  echo 'finished sshing: 'm
 end
