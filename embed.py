@@ -121,7 +121,7 @@ class PermCovarEmbedder1(BaseEmbedder):
         return out
 
 class InceptionEmbedder(BaseEmbedder):
-    def __init__(self, weight_file=None, sess=None, output_layer='Logits',new_layer_width=-1):
+    def __init__(self, weight_file=None, sess=None, output_layer='Logits',new_layer_width=-1,weight_decay=4e-5):
         self.weight_file = weight_file
         self.sess = sess
         self.pretrained = self.built = False
@@ -131,12 +131,13 @@ class InceptionEmbedder(BaseEmbedder):
         self.output_layer = output_layer
         self.endpoints = 0
         self.inception_dim = 1001
+        self.weight_decay = weight_decay
 
     def embed(self, x, is_training = False):
         network_fn = nets_factory.get_network_fn( # define network
             'inception_v3',
             num_classes=self.inception_dim,
-            weight_decay=4e-5,
+            weight_decay=self.weight_decay,
             is_training=is_training)
         self.logits,self.activations_dict = network_fn(x) # build network
         self.params = tf.trainable_variables()

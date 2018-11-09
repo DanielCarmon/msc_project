@@ -161,13 +161,16 @@ class EMClusterer(BaseClusterer):
         2: Soft-Kmeans++ init. 
         '''
         if self.init==0:
+            print 'using init 0'
             self.theta = tf.random_normal([self.k, self.d], seed=2018, name='theta_0') # seed fixed randomness at sess level. every sess run this gives a new value
         elif self.init==1:    
+            print 'using init 1'
             np.random.seed(2018)
             rand_init = np.random.normal(size=[self.k,self.d])
             self.theta = tf.constant(rand_init,name = 'theta_0')
             self.theta = tf.cast(self.theta,tf.float32)
         elif self.init==2:
+            print 'using init 2'
             data = self.x
             old_centroids = GDKMeansPlusPlus.init_first_centroid(data)
             for i in range(self.k-1):

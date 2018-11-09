@@ -30,11 +30,16 @@ import numpy as np
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 logfile_path = project_dir+'/log_train.txt'
 
+remote_run = True
 def log_print(*msg):
-    with open(logfile_path,'a+') as logfile:
-        msg = [str(m) for m in msg]
-        logfile.write(' '.join(msg))
-        logfile.write('\n')
+    global remote_run
+    if remote_run:
+        with open(logfile_path,'a+') as logfile:
+            msg = [str(m) for m in msg]
+            logfile.write(' '.join(msg))
+            logfile.write('\n')
+    else:
+        print [str(m) for m in msg]
 log_print(now(),': bzzzz')
 
 data_params = None
@@ -42,10 +47,24 @@ k = None
 embedder = None
 clusterer = None
 
-def save(obj,fname):
+def save_var_dict(var_list,fname):
+    val_list = sess.run(var_list)
+    name_list = [v.name for v in var_list]
+    var_dict = dict(zip(name_list,val_list))
     pickle_out = open(fname+'.pickle','wb+')
-    pickle.dump(obj,pickle_out)
+    pickle.dump(var_dict,pickle_out)
     pickle_out.close()
+
+def get_act_dict(sess):
+    vars = tf.global_variables()
+    return dict(zip(vars,sess.run(vars)))
+
+def get_agree(d1,d2,b=True):
+    assert d1.keys() == d2.keys()
+    ret = []
+    for key in d1.keys():
+        if b == (d1[key]==d2[key]).all(): ret.append(key)
+    return ret
 
 def my_parser(argv):
     ret = {} 
@@ -90,7 +109,8 @@ def trim(vec, digits=3):
     vec = np.round(vec * factor) / factor
     return vec
 
-
+def print_val(var,sess):
+    print var,':',sess.run(tf.reduce_mean(var))
 
 def run(arg_dict):
     global embedder, clusterer, data_params, k, sess # initialized as None. kept as global for access in debugger mode
@@ -133,9 +153,12 @@ def run(arg_dict):
     log_print(now(),': building model for',name)
     log_grads = False
     obj = arg_dict['obj']
-    model = Model(data_params, embedder, clusterer, lr, is_img=True,sess=sess,for_training=True,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
+    #for_training = arg_dict['params'] == 'e2e' # don't bother learning batch statistics if training only last layer
+    for_training = arg_dict['for_training']
+    model = Model(data_params, embedder, clusterer, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
 
     # ckpt configs:
+    sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     n_offset = 0 # no. of previous checkpoints
     try: # restore last ckpt
@@ -147,11 +170,13 @@ def run(arg_dict):
             ckpt_path = ckpt_path+'/step_'+str(last_n)+'.ckpt'
             n_offset = last_n+1
             log_print(now(),': Restoring parameters from',ckpt_path)
-            saver.restore(sess,ckpt_path)
+            with tf.device('/cpu:0'):
+                saver.restore(sess,ckpt_path)
             nmi_score_history_prefix = np.load(project_dir+'train_nmis{}.npy'.format(name))
             loss_history_prefix = np.load(project_dir+'train_losses{}.npy'.format(name))
     except: 
-        log_print(now(),': no previous checkpoints found for',name)
+        log_print(now(),': no previous checkpoints found for',name,'; loading from ImageNet ckpt')
+        embedder.load_weights(sess)
         nmi_score_history_prefix = []
         loss_history_prefix = []
 
@@ -165,6 +190,7 @@ def run(arg_dict):
         nmi_score_history = []
         step = model.train_step # update step op
         
+        new_dict = None
         current_batch = 0 # only relevant for ebay dataset
         for i in range(n_offset,n_steps): # main loop
             if (i%i_log==0): # save ckpt and refresh data if need to
@@ -180,12 +206,27 @@ def run(arg_dict):
                     refresh_train_data_and_ls(dataset_flag,current_batch=current_batch) # load new dataset to ram
                     current_batch+=1
                     current_batch%=n_ebay_batches
+            """
+            param = embedder.params[0]
+            vars_to_restore = sess.graph.get_collection('variables')
+            batch_norm_vars = list(set(vars_to_restore).difference(set(embedder.params)))
+            batch_norm_vars = list(filter(lambda v: 'new_layer' not in v.name,batch_norm_vars))
+            bn_param = batch_norm_vars[0]
+            print_val(bn_param,sess)
+            print_val(param,sess)
+            old_dict = new_dict
+            new_dict = get_act_dict()
+            if not old_dict is None:
+                agree = get_agree(new_dict,old_dict)
+                disagree = get_agree(new_dict,old_dict,False)
+            """
 
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # get new batch
             feed_dict = {model.x: xs, model.y: ys}
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)
+
                 _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
                 clustering = clustering_history[-1]
                 nmi_score = skl_nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
@@ -208,9 +249,9 @@ def run(arg_dict):
     log_print(now(),': begin training')
     # end-to-end training:
     i_log = 100 # save ckpt every i_log iters 
-    n_train_iters = 30
+    n_train_iters = 3000
     if mini:
-        n_train_iters = 2000
+        n_train_iters = 500
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
@@ -227,7 +268,8 @@ def run(arg_dict):
         if arg_dict['permcovar']:
             filter_cond = lambda v: 'PermCovar' in str(v)
         else:
-            filter_cond = lambda x: ("logits" in str(x)) and not ("aux" in str(x))
+            #filter_cond = lambda x: ("new_layer" in str(x) or "Logits" in str(x)) and not ("Aux" in str(x))
+            filter_cond = lambda x: ("new_layer" in str(x))
         permcovar_params = filter(filter_cond,tf.global_variables())
         last_layer_params = filter(filter_cond,tf.global_variables())
         if not arg_dict['permcovar']: last_layer_params.append(embedder.new_layer_w)
@@ -252,4 +294,5 @@ if __name__ == "__main__":
     sess = tf.InteractiveSession()
     run(arg_dict)
     log_print(now(),': at end of train')
+    a = a/0
     exit()

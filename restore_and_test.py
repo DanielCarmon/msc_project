@@ -15,20 +15,36 @@ import pdb
 import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
-from sklearn.metrics import normalized_mutual_info_score as nmi
+from sklearn.metrics import normalized_mutual_info_score as skl_nmi
 
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 logfile_path = project_dir+'/log_test.txt'
 
+remote_run = False
+
 def log_print(*msg):
-    with open(logfile_path,'a+') as logfile:
-        msg = [str(m) for m in msg]
-        logfile.write(' '.join(msg))
-        logfile.write('\n')
+    global remote_run
+    if remote_run:
+        with open(logfile_path,'a+') as logfile:
+            msg = [str(m) for m in msg]
+            logfile.write(' '.join(msg))
+            logfile.write('\n')
+    else:
+        print [str(m) for m in msg]
+
 log_print('entered restore_and_test.py')
+
 def as_bool(s):
     if s=='False': return False
     if s=='True': return True
+
+def save_var_dict(var_list,fname):
+    val_list = sess.run(var_list)
+    name_list = [v.name for v in var_list]
+    var_dict = dict(zip(name_list,val_list))
+    pickle_out = open(fname+'.pickle','wb+')
+    pickle.dump(var_dict,pickle_out)
+    pickle_out.close()
 
 def my_parser(argv):
     ret = {} 
@@ -72,7 +88,7 @@ log_print(name+': '+'finished')
 split_name = ['train','test','valid','minitrain','minitest'][eval_split]
 fname_prefix = split_name+'_data_scores'
 gpu = arg_dict['gpu']
-os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+if gpu>=0: os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 config = tf.ConfigProto(allow_soft_placement=True)
 log_print(name+': '+'Starting TF Session')
 sess = tf.InteractiveSession(config=config)
@@ -143,8 +159,8 @@ def test(test_data,use_permcovar=False):
     log_print(name+': '+'finished clustering')
     labels = km.labels_
     #labels_normalized = km_normalized.labels_
-    nmi_score = nmi(labels, np.argmax(test_ys_membership, 1))
-    #nmi_score_normalized = nmi(labels_normalized, np.argmax(ys_membership, 1))
+    nmi_score = skl_nmi(labels, np.argmax(test_ys_membership, 1))
+    #nmi_score_normalized = skl_nmi(labels_normalized, np.argmax(ys_membership, 1))
     #scores = [nmi_score,nmi_score_normalized]
     result = nmi_score
     toc = dcdb.now()
@@ -171,15 +187,21 @@ except:
     range_checkpoints = default_range_checkpoints
     to_append = []
 for i in range_checkpoints:
+    time.sleep(30) #TODO: del this
     log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(eval_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_permcovar: log_print('WARNING: using permcovar' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
     try:
-        saver.restore(sess,ckpt_path)
+        #pdb.set_trace()
+        with tf.device('/cpu:0'):
+            saver.restore(sess,ckpt_path)
     except:
         log_print(name+': restore from '+ckpt_path+' failed. exiting program')
         exit(0)
+
+    #save_var_dict(tf.global_variables(),'new_eval_bn_vars')
+    #pdb.set_trace()
     result = test(data,use_permcovar)
     results.append(result)
     np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting 

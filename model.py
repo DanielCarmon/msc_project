@@ -100,9 +100,6 @@ class Model:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.train_step = self.optimizer.minimize(self.loss)
-        print 'initializing global variables'
-        self.sess.run(tf.global_variables_initializer())
-        self.embedder.load_weights(self.sess)
     @staticmethod
     def L2_loss(y_pred, y, use_tg):
         '''
@@ -123,6 +120,5 @@ class Model:
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
     @staticmethod
     def NMI_loss(y_pred,y,use_tg):
-        print 'in NMI_loss'
         compare = y_pred[-1]# no support for tg yet
         return -my_nmi(y,compare) # optimizer should minimize this
