@@ -79,7 +79,7 @@ class GDKMeansPlusPlus(BaseClusterer):
         dist_mat = GDKMeansPlusPlus.get_dist_mat(data, old_centroids)
         means = tf.reduce_mean(dist_mat, 1)
         dist_mat_normed = dist_mat - means[:, None]
-        bandwidth = 5
+        bandwidth = 0.05
         softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, axis=1)  # softmin
         D = softmin_mat * dist_mat  # elementwise
         D = tf.reduce_sum(D, 1)
@@ -91,11 +91,11 @@ class GDKMeansPlusPlus(BaseClusterer):
         global prob_vector, new_centroid_coeffs
         prob_vector = GDKMeansPlusPlus.get_prob_vector(data,
                                       old_centroids)  # [n]. normalized (i.e a probability inducing) vector of soft-min distances from old centroids
-        eps = 1e-3
+        eps = 1e-6
         prob_vector += eps
         prob_vector /= tf.reduce_sum(prob_vector)
         relaxedOneHot = tf.contrib.distributions.RelaxedOneHotCategorical
-        dist = relaxedOneHot(temperature=5., probs=prob_vector)
+        dist = relaxedOneHot(temperature=.05, probs=prob_vector)
         new_centroid_coeffs = dist.sample()  # differentiable op. shape [n]
         new_centroid = tf.matmul(new_centroid_coeffs[None, :], data)
         old_centroids = tf.concat([old_centroids, new_centroid], 0)
@@ -153,6 +153,58 @@ class EMClusterer(BaseClusterer):
         self.x = x
         self.init_params()  # TF constants for inner-optimization. Init might be data-driven
 
+    @staticmethod
+    def get_dist_mat(a, b):
+        reduce_norms = lambda a: tf.reduce_sum((a * a), axis=1)
+        global norms
+        norms1 = reduce_norms(a)[:, None]
+        norms2 = reduce_norms(b)[None, :]
+        norms = b
+        # norms = tf.concat([norms1,tf.transpose(norms2)],0)
+        global inner_prod_mat
+        inner_prod_mat = tf.matmul(a, tf.transpose(b))
+        dist_mat = (-2 * inner_prod_mat + norms1) + norms2
+        return dist_mat
+
+    @staticmethod
+    def get_prob_vector(data, old_centroids):
+        '''
+        input:
+            data - [n,d] data matrix
+            old_centroids - [k',d] centroid matrix
+        output:
+            [n,1] vector proportional to D^2(x_i) = softmin(d(xi,c1),...,d(xi,ck'))
+        '''
+        global dist_mat
+        dist_mat = EMClusterer.get_dist_mat(data, old_centroids)
+        means = tf.reduce_mean(dist_mat, 1)
+        dist_mat_normed = dist_mat - means[:, None]
+        bandwidth = 0.05
+        softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, axis=1)  # softmin
+        D = softmin_mat * dist_mat  # elementwise
+        D = tf.reduce_sum(D, 1)
+        D = D / tf.reduce_sum(D)
+        return D
+
+    @staticmethod
+    def centroid_choice_layer(data, old_centroids):
+        global prob_vector, new_centroid_coeffs
+        prob_vector = EMClusterer.get_prob_vector(data,
+                                      old_centroids)  # [n]. normalized (i.e a probability inducing) vector of soft-min distances from old centroids
+        eps = 1e-6
+        prob_vector += eps
+        prob_vector /= tf.reduce_sum(prob_vector)
+        relaxedOneHot = tf.contrib.distributions.RelaxedOneHotCategorical
+        dist = relaxedOneHot(temperature=.05, probs=prob_vector)
+        new_centroid_coeffs = dist.sample()  # differentiable op. shape [n]
+        new_centroid = tf.matmul(new_centroid_coeffs[None, :], data)
+        old_centroids = tf.concat([old_centroids, new_centroid], 0)
+        return old_centroids
+
+    @staticmethod
+    def init_first_centroid(data):
+        old_centroids = data[0, :][None, :]  # no need to permute since feeded data is already permuted
+        return old_centroids
     def init_params(self):
         '''
         cases of self.init:
@@ -172,9 +224,9 @@ class EMClusterer(BaseClusterer):
         elif self.init==2:
             print 'using init 2'
             data = self.x
-            old_centroids = GDKMeansPlusPlus.init_first_centroid(data)
+            old_centroids = EMClusterer.init_first_centroid(data)
             for i in range(self.k-1):
-                old_centroids = GDKMeansPlusPlus.centroid_choice_layer(data,old_centroids)
+                old_centroids = EMClusterer.centroid_choice_layer(data,old_centroids)
             self.theta = old_centroids
 
         self.history_list = []
@@ -206,3 +258,27 @@ class EMClusterer(BaseClusterer):
         #check = tf.is_nan(tf.reduce_sum(z))
         #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z
+if __name__ == '__main__':
+    ## testing km++ init
+    n,d = 100,1001
+    k = 10
+    np_data = np.zeros((0,d))
+    for i in range(k):
+        mu_i = np.zeros((1,d))
+        mu_i[0,i]=100
+        cluster_data = np.random.normal(loc=mu_i,size=(n/k,d))
+        np_data = np.vstack((np_data,cluster_data))
+    # computation graph:
+    data = tf.placeholder(tf.float32,[n,d])
+    clusterer = EMClusterer([n,d],k,init=2)
+    clusterer.set_data(data)
+    sess = tf.InteractiveSession()
+    feed_dict = {data:np_data}
+    np_theta = sess.run(clusterer.theta,feed_dict)
+    print np_theta
+    i_in = []
+    for row in np_theta:
+        print np.argmax(row),np.max(row)
+        i_in.append(np.argmax(row))
+    i_in = set(i_in)
+    print 'out:',k-len(i_in)

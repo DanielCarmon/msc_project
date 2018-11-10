@@ -63,11 +63,17 @@ class Model:
             self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
         else:
             self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
-        self.x = tf.cast(self.x, tf.float32)
+        ## new preprocess:
+        #self.x = tf.cast(self.x, tf.float32)
+        #self.x_centered = tf.subtract(self.x, 0.5)
+        #self.x_preprocessed = tf.multiply(self.x_centered, 2.0)
+        #self.x_means = tf.reduce_mean(self.x_preprocessed,[1,2,3])
+        ## old preprocess:
+        self.x_preprocessed = tf.cast(self.x,tf.float32)
         #self.y = tf.placeholder(tf.float32, [self.n, self.n])
         self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
         self.y = tf.cast(self.y, tf.float32)
-        self.x_embed = self.embedder.embed(self.x,for_training) # embeddings tensor
+        self.x_embed = self.embedder.embed(self.x_preprocessed,for_training) # embeddings tensor
         ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
         self.lr = lr
         self.optimizer = self.optimizer_class(lr)

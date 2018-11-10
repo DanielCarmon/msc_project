@@ -26,11 +26,12 @@ import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as skl_nmi
 import numpy as np
+from utils import *
 
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 logfile_path = project_dir+'/log_train.txt'
 
-remote_run = True
+remote_run = False
 def log_print(*msg):
     global remote_run
     if remote_run:
@@ -47,70 +48,6 @@ k = None
 embedder = None
 clusterer = None
 
-def save_var_dict(var_list,fname):
-    val_list = sess.run(var_list)
-    name_list = [v.name for v in var_list]
-    var_dict = dict(zip(name_list,val_list))
-    pickle_out = open(fname+'.pickle','wb+')
-    pickle.dump(var_dict,pickle_out)
-    pickle_out.close()
-
-def get_act_dict(sess):
-    vars = tf.global_variables()
-    return dict(zip(vars,sess.run(vars)))
-
-def get_agree(d1,d2,b=True):
-    assert d1.keys() == d2.keys()
-    ret = []
-    for key in d1.keys():
-        if b == (d1[key]==d2[key]).all(): ret.append(key)
-    return ret
-
-def my_parser(argv):
-    ret = {} 
-    # default opts:
-    ret['use_tg'] = True # aux gradients
-    ret['obj'] = 'L2' # distance between pred and gt
-    ret['cluster'] = 'em' # cluster inference module
-    ret['cluster_hp'] = 1e-2 # bandwidth for em, step-size for km
-    ret['params'] = 'e2e' # what params to train
-    ret['init'] = 2 # init method for clusterer
-    ret['restore_last'] = True # load params from last ckpt
-    # override defaults:
-    n = len(argv)
-    for i in range(n):
-        if argv[i][:2]=="--": # is flag
-            key = argv[i][2:]
-            val_raw = argv[i+1]
-            try:
-                val = eval(val_raw)
-            except: # val should be string
-                val = val_raw 
-            ret[key]=val
-    # format opts:        
-    ret['permcovar'] = bool(ret['permcovar']) 
-    log_print(now(),': using options:',ret)
-    if ret['cluster'] == "em":
-        ret['cluster'] = EMClusterer
-    if ret['cluster'] == "kmeans":
-        ret['cluster'] = GDKMeansClusterer2
-    return ret
-
-def linenum():
-    """ Returns current line number """
-    return inspect.currentframe().f_back.f_lineno
-
-def get_tb():
-    exc = sys.exc_info()
-    return traceback.print_exception(*exc)
-
-def trim(vec, digits=3):
-    factor = 10 ** digits
-    vec = np.round(vec * factor) / factor
-    return vec
-
-def print_val(var,sess):
-    print var,':',sess.run(tf.reduce_mean(var))
 
 def run(arg_dict):
     global embedder, clusterer, data_params, k, sess # initialized as None. kept as global for access in debugger mode
@@ -145,7 +82,9 @@ def run(arg_dict):
     use_tg = arg_dict['use_tg'] # use aux gradients
     init = arg_dict['init'] # init method for clusterer
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
-    embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters) # embedding function  
+    weight_decay = arg_dict['weight_decay']
+    #weight_decay = 4e-5
+    embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters,weight_decay=weight_decay) # embedding function  
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
         embedder = PermCovarEmbedder1(n_final_clusters).compose(embedder_pointwise)
@@ -222,7 +161,10 @@ def run(arg_dict):
             """
 
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # get new batch
+            #pdb.set_trace()
             feed_dict = {model.x: xs, model.y: ys}
+            #means = model.x_means
+            #print 'means:',sess.run(means,feed_dict)
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)

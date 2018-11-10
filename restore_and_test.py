@@ -16,11 +16,12 @@ import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
 from sklearn.metrics import normalized_mutual_info_score as skl_nmi
+from utils import *
 
 project_dir = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project"
 logfile_path = project_dir+'/log_test.txt'
 
-remote_run = False
+remote_run = True
 
 def log_print(*msg):
     global remote_run
@@ -34,48 +35,9 @@ def log_print(*msg):
 
 log_print('entered restore_and_test.py')
 
-def as_bool(s):
-    if s=='False': return False
-    if s=='True': return True
-
-def save_var_dict(var_list,fname):
-    val_list = sess.run(var_list)
-    name_list = [v.name for v in var_list]
-    var_dict = dict(zip(name_list,val_list))
-    pickle_out = open(fname+'.pickle','wb+')
-    pickle.dump(var_dict,pickle_out)
-    pickle_out.close()
-
-def my_parser(argv):
-    ret = {} 
-    # default opts:
-    ret['use_tg'] = True # aux gradients
-    ret['obj'] = 'L2' # distance between pred and gt
-    ret['cluster'] = 'em' # cluster inference module
-    ret['cluster_hp'] = 1e-2 # bandwidth for em, step-size for km
-    ret['init'] = 2 # init method for clusterer
-    # override defaults:
-    n = len(argv)
-    for i in range(n):
-        if argv[i][:2]=="--": # is flag
-            key = argv[i][2:]
-            val_raw = argv[i+1]
-            try:
-                val = eval(val_raw)
-            except: # val should be string
-                val = val_raw 
-            ret[key]=val
-    # format opts:        
-    ret['permcovar'] = bool(ret['permcovar']) 
-    log_print('using options:',ret)
-    if ret['cluster'] == "em":
-        ret['cluster'] = EMClusterer
-    if ret['cluster'] == "kmeans":
-        ret['cluster'] = GDKMeansClusterer2
-    return ret
-
 argv = sys.argv
 arg_dict = my_parser(argv)
+log_print(now(),': using options:',arg_dict)
 inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3"
 dataset_flag = arg_dict['dataset']
 use_permcovar = as_bool(arg_dict['permcovar'])

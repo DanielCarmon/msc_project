@@ -131,7 +131,7 @@ class InceptionEmbedder(BaseEmbedder):
         self.output_layer = output_layer
         self.endpoints = 0
         self.inception_dim = 1001
-        self.weight_decay = weight_decay
+        self.weight_decay = float(weight_decay)
 
     def embed(self, x, is_training = False):
         network_fn = nets_factory.get_network_fn( # define network
