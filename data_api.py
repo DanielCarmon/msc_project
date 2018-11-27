@@ -139,7 +139,6 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     except:
         log_print('failed to read {}. exiting program'.format(xs_name))
         exit(0)
-    #pdb.set_trace()
     log_print('read xs with shape {}'.format(xs.shape))
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix

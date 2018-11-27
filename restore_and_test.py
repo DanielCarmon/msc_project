@@ -58,6 +58,10 @@ d = 299
 list_final_clusters = [100,98,512,102]
 n_final_clusters = list_final_clusters[dataset_flag]
 if mini: n_final_clusters = n_final_clusters/2
+try:
+    n_final_clusters = arg_dict['embed_dim']
+except:
+    log_print('using default embed dim')
 embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters)
 startpoint = tf.placeholder(tf.float32,[None,299,299,3])
 endpoint = embedder.embed(startpoint,is_training=False)
@@ -149,7 +153,6 @@ except:
     range_checkpoints = default_range_checkpoints
     to_append = []
 for i in range_checkpoints:
-    time.sleep(30) #TODO: del this
     log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(eval_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_permcovar: log_print('WARNING: using permcovar' )

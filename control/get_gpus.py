@@ -12,13 +12,13 @@ if su0:
 else:
     used = set([x for x in (column.split('GPU')[-1]).split('\n') if x!=''])
 if machine=='savant\n':    
-    total = set([str(i) for i in range(8)])
+    total = set([str(i) for i in range(6)])
 else:
     total = set([str(i) for i in range(4)])
 free = list(total.difference(used))
 f = open('workers.txt','a')
 if (machine[:1]=='r'): # don't overload rack machines
-    margin = 4
+    margin = 2
     current_load = len(used)
     margin_load = margin-current_load
     free = free[:max(0,margin_load)]

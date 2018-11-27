@@ -6,21 +6,16 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"  
 import glob
 import tensorflow as tf
-from sklearn import cluster
 import traceback
 import sys
 from data_api import *
 from model import *
 from control.dcdb import *
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-import matplotlib.image as mpimg
 from tqdm import tqdm
 from datetime import datetime
 import pdb 
 import sys
 import time
-import traceback
 import inspect
 import pickle
 from tensorflow.python import debug as tf_debug
@@ -31,7 +26,7 @@ from utils import *
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 logfile_path = project_dir+'/log_train.txt'
 
-remote_run = False
+remote_run = True
 def log_print(*msg):
     global remote_run
     if remote_run:
@@ -62,7 +57,10 @@ def run(arg_dict):
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
     if mini: # train on miniset for val
         n_final_clusters = n_final_clusters/2
-    
+    try:
+        n_final_clusters = arg_dict['embed_dim']
+    except:
+        log_print('no embed dim specified. using default:',n_final_clusters)
     # batch configs:
     d = 299 # inception input size = [d,d]
     k = arg_dict['n_classes'] # clusters per batch
@@ -122,14 +120,10 @@ def run(arg_dict):
     def train(model,hyparams,name): # training procedure
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
-        train_scores = []
         n_steps,k,n_,i_log  = hyparams
-        param_history = []
         loss_history = []
         nmi_score_history = []
         step = model.train_step # update step op
-        
-        new_dict = None
         current_batch = 0 # only relevant for ebay dataset
         for i in range(n_offset,n_steps): # main loop
             if (i%i_log==0): # save ckpt and refresh data if need to
@@ -159,7 +153,6 @@ def run(arg_dict):
                 agree = get_agree(new_dict,old_dict)
                 disagree = get_agree(new_dict,old_dict,False)
             """
-
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # get new batch
             #pdb.set_trace()
             feed_dict = {model.x: xs, model.y: ys}
@@ -212,7 +205,7 @@ def run(arg_dict):
         else:
             #filter_cond = lambda x: ("new_layer" in str(x) or "Logits" in str(x)) and not ("Aux" in str(x))
             filter_cond = lambda x: ("new_layer" in str(x))
-        permcovar_params = filter(filter_cond,tf.global_variables())
+        #permcovar_params = filter(filter_cond,tf.global_variables())
         last_layer_params = filter(filter_cond,tf.global_variables())
         if not arg_dict['permcovar']: last_layer_params.append(embedder.new_layer_w)
         model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
@@ -236,5 +229,4 @@ if __name__ == "__main__":
     sess = tf.InteractiveSession()
     run(arg_dict)
     log_print(now(),': at end of train')
-    a = a/0
     exit()

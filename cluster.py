@@ -179,7 +179,8 @@ class EMClusterer(BaseClusterer):
         dist_mat = EMClusterer.get_dist_mat(data, old_centroids)
         means = tf.reduce_mean(dist_mat, 1)
         dist_mat_normed = dist_mat - means[:, None]
-        bandwidth = 0.05
+        ##bandwidth = 0.05 @low_temp
+        bandwidth = 5
         softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, axis=1)  # softmin
         D = softmin_mat * dist_mat  # elementwise
         D = tf.reduce_sum(D, 1)
@@ -191,11 +192,13 @@ class EMClusterer(BaseClusterer):
         global prob_vector, new_centroid_coeffs
         prob_vector = EMClusterer.get_prob_vector(data,
                                       old_centroids)  # [n]. normalized (i.e a probability inducing) vector of soft-min distances from old centroids
-        eps = 1e-6
+        ##eps = 1e-6 #@low_temp
+        eps = 1e-3
         prob_vector += eps
         prob_vector /= tf.reduce_sum(prob_vector)
         relaxedOneHot = tf.contrib.distributions.RelaxedOneHotCategorical
-        dist = relaxedOneHot(temperature=.05, probs=prob_vector)
+        ##dist = relaxedOneHot(temperature=.05, probs=prob_vector) #@low_temp
+        dist = relaxedOneHot(temperature=5., probs=prob_vector)
         new_centroid_coeffs = dist.sample()  # differentiable op. shape [n]
         new_centroid = tf.matmul(new_centroid_coeffs[None, :], data)
         old_centroids = tf.concat([old_centroids, new_centroid], 0)
