@@ -25,7 +25,6 @@ while True:
             model_name = model_name[13:]
         path = project_dir+'/'+model_name
         paths.append(path[:-1])
-    #pdb.set_trace()
     lines_to_print = ['checking progress for jobs in ',fname]
     for path in paths:
         try:

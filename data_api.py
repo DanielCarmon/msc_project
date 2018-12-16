@@ -33,10 +33,10 @@ train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_b
                    '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars',
                    '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data',
                    '/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'
-                   ]    
-train_classes_lst =[range(1,101),range(1,99),range(1,513),range(1,103)] 
+                   ]
+train_classes_lst =[range(1,101),range(1,99),range(1,513),range(1,103)]
 szs_lst = [np.array(pickle.load(open(data_dir_+'/lengths.pickle'))[:len(train_classes_)]) for data_dir_,train_classes_ in zip(train_data_dirs,train_classes_lst)]
-offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst 
+offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst
 train_data = None # store data on RAM for faster access
 fixed_ys = None
 
@@ -48,7 +48,7 @@ def get_fixed_ys(n,k):
 def get_szs_and_offsets(batch_classes,dataset_flag):
     global szs_lst,offsets_lst
     szs = szs_lst[dataset_flag][batch_classes-1]
-    offsets = offsets_lst[dataset_flag][batch_classes-1] 
+    offsets = offsets_lst[dataset_flag][batch_classes-1]
     return szs,offsets
 
 def refresh_train_data_and_ls(dataset_flag,current_batch,mini=False,name=''):
@@ -58,7 +58,7 @@ def refresh_train_data_and_ls(dataset_flag,current_batch,mini=False,name=''):
                        '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data',
                        '/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'
                        ]   # reset 
-    train_data_dir = train_data_dirs[dataset_flag] 
+    train_data_dir = train_data_dirs[dataset_flag]
     szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)] # get lengths file based on updated paths
     offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst # calculate offsets 
     train_data = np.load(train_data_dir+'/train_data.npy') # get new data
@@ -85,7 +85,7 @@ def init_train_data(dataset_flag,mini=False,name=''):
 def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     global fixed_ys
     n_per_class = int(n/k)
-    
+
     # sample
     batch_classes = np.random.choice(train_classes,k,replace=False)
     class_szs,class_offsets = get_szs_and_offsets(batch_classes,dataset_flag)
@@ -125,7 +125,6 @@ def get_len_list(inds,data_dir,augment):
 def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     version = ''
     if use_crop: version = '_cropped'
-    data_paths = [data_dir+"/class"+str(i)+"{}.npy".format(version) for i in inds]
     class_szs = get_len_list(inds,data_dir,augment)
     shape = sum(class_szs),299,299,3
     which_data = str(inds[0])+"_to_"+str(inds[-1])
@@ -142,7 +141,7 @@ def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     log_print('read xs with shape {}'.format(xs.shape))
     membership_islands = [np.ones((sz,1)) for sz in class_szs]
     ys_membership = block_diag(*membership_islands) # membership matrix
-    return xs,ys_membership
+    return [xs,ys_membership]
 
 def get_data(split_flag,dataset_flag):
     '''
@@ -169,7 +168,7 @@ def get_data(split_flag,dataset_flag):
     split_list = [train_inds_list,test_inds_list,val_inds_list,minitrain_inds_list,minitest_inds_list]
     inds = split_list[split_flag][dataset_flag]
     mini = split_flag>2
-    if inds==None: 
+    if inds==None:
         print 'unsupported split:',split_flag,dataset_flag
         print 'for ebay test split, use "restore_and_test_ebay_total.py"'
     data_dir = data_dirs[dataset_flag]

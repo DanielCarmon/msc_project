@@ -28,7 +28,7 @@ def my_nmi(y_assign_gt,y_assign_predict):
     ''' args: two row-stochastic matrices of shape [n,k]'''
     n = tf.reduce_sum(y_assign_gt) # row-stochastic with n rows...
     # get probabilities from assignments:
-    eps = 1e-3
+    eps = 1e-9
     joint_prob_mat = tf.matmul(y_assign_gt,y_assign_predict,transpose_a=True)/n # [k,k]
     p_vals1 = tf.reduce_sum(y_assign_gt,axis=0) + eps
     p_vals1 = p_vals1/tf.reduce_sum(p_vals1) # normalize
@@ -38,11 +38,8 @@ def my_nmi(y_assign_gt,y_assign_predict):
     p_vals_joint = p_vals_joint/tf.reduce_sum(p_vals_joint) # normalize
     # calculate entropies:
     entropy1 = my_entropy(p_vals1)
-    entropy1 = tf.Print(entropy1,[entropy1],'entropy_gt:')
     entropy2 = my_entropy(p_vals2)
-    entropy2 = tf.Print(entropy2,[entropy2],'entropy_pred:')
     entropy_joint = my_entropy(p_vals_joint)
-    entropy_joint = tf.Print(entropy_joint,[entropy_joint],'entropy_joint:')
     # use mutual info identity:
     mutual_info = entropy1+entropy2-entropy_joint
     # return normalized: 
@@ -54,7 +51,7 @@ def my_nmi(y_assign_gt,y_assign_predict):
 
 class Model:
     optimizer_class = tf.train.AdamOptimizer
-    def __init__(self, data_params, embedder=None, clusterer=None, lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True,obj='L2',log_grads=False):
+    def __init__(self, data_params, embedder=None, clusterer=None, prepro='old',lr = 0.0001, is_img=False, sess=None, for_training=False, regularize=True, use_tg=True,obj='L2',log_grads=False):
         self.sess = sess
         self.embedder = embedder
         self.clusterer = clusterer
@@ -63,14 +60,18 @@ class Model:
             self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
         else:
             self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
-        ## new preprocess:
-        #self.x = tf.cast(self.x, tf.float32)
-        #self.x_centered = tf.subtract(self.x, 0.5)
-        #self.x_preprocessed = tf.multiply(self.x_centered, 2.0)
-        #self.x_means = tf.reduce_mean(self.x_preprocessed,[1,2,3])
-        ## old preprocess:
-        self.x_preprocessed = tf.cast(self.x,tf.float32)
-        #self.y = tf.placeholder(tf.float32, [self.n, self.n])
+        if prepro!='old':
+            ## new preprocess:
+            self.x = tf.cast(self.x, tf.float32)
+            self.x_centered = tf.subtract(self.x, 0.5)
+            self.x_preprocessed = tf.multiply(self.x_centered, 2.0)
+            stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
+            self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
+        else:
+            ## old preprocess:
+            self.x_preprocessed = tf.cast(self.x,tf.float32)
+            stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
+            self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
         self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
         self.y = tf.cast(self.y, tf.float32)
         self.x_embed = self.embedder.embed(self.x_preprocessed,for_training) # embeddings tensor
@@ -88,14 +89,13 @@ class Model:
             print 'Error: Unsupported objective "',obj,'"'
             exit()
         if log_grads:
-            self.pre_grads = tf.gradients(self.loss, embedder.params) 
+            self.pre_grads = tf.gradients(self.loss, embedder.params)
             self.grads = filter((lambda x: x!=None),self.pre_grads) # remove None gradients from tf's batch norm params.
             self.loss = tf.Print(self.loss,self.grads , 'gradient:')
-        else: 
+        else:
             self.grads = tf.constant(-1)
             self.loss = tf.Print(self.loss,[self.loss], 'loss:')
         #self.loss = tf.Print(self.loss, [self.loss], 'loss:')
-        
         regularizer,beta = 0.,0.
         if regularize:
             for param in self.embedder.params:
@@ -103,9 +103,11 @@ class Model:
                 regularizer += tf.nn.l2_loss(param)
         self.loss = beta*regularizer + self.loss
         print 'building optimizer'
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS) # tf.GraphKeys.UPDATE_OPS == 'update_ops'
+        #pdb.set_trace()
+        #update_ops = None
         with tf.control_dependencies(update_ops):
-            self.train_step = self.optimizer.minimize(self.loss)
+            self.train_step = self.optimizer.minimize(self.loss,global_step=tf.train.get_global_step())
     @staticmethod
     def L2_loss(y_pred, y, use_tg):
         '''
@@ -126,5 +128,13 @@ class Model:
         return tf.reduce_sum((compare - y) ** 2) / tf.cast(normalize, tf.float32)
     @staticmethod
     def NMI_loss(y_pred,y,use_tg):
-        compare = y_pred[-1]# no support for tg yet
-        return -my_nmi(y,compare) # optimizer should minimize this
+        if use_tg:
+            curry_right = lambda y_left: my_nmi(y_left,y)
+            stacked_nmis = tf.map_fn(curry_right,y_pred)
+            stacked_nmis = tf.Print(stacked_nmis,[stacked_nmis],'-------------------------------------------------------------STACKED_NMIS:')
+            reduced_mean = -tf.reduce_mean(stacked_nmis)
+            reduced_mean = tf.Print(reduced_mean,[reduced_mean],'reduced_mean')
+            return reduced_mean
+        else:
+            compare = y_pred[-1] 
+            return -my_nmi(y,compare) # optimizer should minimize this

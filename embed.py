@@ -99,7 +99,7 @@ class PermCovarEmbedder1(BaseEmbedder):
     def embed(self,x):
         x = tf_print(x,msg='Embedding input')
         layer_widths = [self.d,self.d] # or something else
-        eps = 1e-3
+        #eps = 1e-3
         ##init = tf.initializers.constant(value=eps)
         init = tf.contrib.layers.xavier_initializer()
         self.phi = MLP(layer_widths,x,"phi",init)
@@ -121,11 +121,11 @@ class PermCovarEmbedder1(BaseEmbedder):
         return out
 
 class InceptionEmbedder(BaseEmbedder):
-    def __init__(self, weight_file=None, sess=None, output_layer='Logits',new_layer_width=-1,weight_decay=4e-5):
+    def __init__(self, weight_file=None, sess=None, output_layer='Logits',num_classes=-1,weight_decay=4e-5):
         self.weight_file = weight_file
         self.sess = sess
         self.pretrained = self.built = False
-        self.new_layer_width = new_layer_width
+        self.num_classes = num_classes
         self.saver = None
         self.params = []
         self.output_layer = output_layer
@@ -136,7 +136,7 @@ class InceptionEmbedder(BaseEmbedder):
     def embed(self, x, is_training = False):
         network_fn = nets_factory.get_network_fn( # define network
             'inception_v3',
-            num_classes=self.inception_dim,
+            num_classes=self.num_classes,
             weight_decay=self.weight_decay,
             is_training=is_training)
         self.logits,self.activations_dict = network_fn(x) # build network
@@ -150,20 +150,13 @@ class InceptionEmbedder(BaseEmbedder):
             print 'Please use one of these names:'
             print self.activations_dict.keys()
             exit()
-        if self.new_layer_width!=-1: #
-            print 'building new layer'
-            initializer = tf.contrib.layers.xavier_initializer()
-            self.new_layer_w = tf.get_variable('new_layer_w',[self.inception_dim,self.new_layer_width],initializer=initializer)
-            self.output = tf.matmul(self.output,self.new_layer_w)
-        else:
-            self.output = self.logits
         return self.output
-
     def load_weights(self,sess):
         print 'start loading pre-trained weights'
         vars_to_restore = sess.graph.get_collection('variables')
         self.batch_norm_vars = list(set(vars_to_restore).difference(set(self.params)))
         self.batch_norm_vars = list(filter(lambda v: 'new_layer' not in v.name,self.batch_norm_vars))
+        vars_to_restore = list(filter(lambda v: 'Logits' not in v.name,vars_to_restore))
         restorer = slim.assign_from_checkpoint_fn(
               self.weight_file,
               vars_to_restore,

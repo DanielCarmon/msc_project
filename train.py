@@ -1,9 +1,9 @@
 import os
 import os.path
 #os.environ['TF_CPP_MIN_VLOG_LEVEL']='3'
-os.environ["OMP_NUM_THREADS"] = "1"  
-os.environ["MKL_NUM_THREADS"] = "1"  
-os.environ["NUMEXPR_NUM_THREADS"] = "1"  
+os.environ["OMP_NUM_THREADS"] = "1" 
+os.environ["MKL_NUM_THREADS"] = "1" 
+os.environ["NUMEXPR_NUM_THREADS"] = "1" 
 import glob
 import tensorflow as tf
 import traceback
@@ -13,7 +13,7 @@ from model import *
 from control.dcdb import *
 from tqdm import tqdm
 from datetime import datetime
-import pdb 
+import pdb
 import sys
 import time
 import inspect
@@ -26,7 +26,12 @@ from utils import *
 project_dir = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/'
 logfile_path = project_dir+'/log_train.txt'
 
-remote_run = True
+# configure debug print function:
+if '--remote_run' in sys.argv:
+    i_rr = sys.argv.index('--remote_run')
+    remote_run = eval(sys.argv[i_rr+1])
+else:
+    remote_run = True
 def log_print(*msg):
     global remote_run
     if remote_run:
@@ -55,8 +60,6 @@ def run(arg_dict):
     log_print(now(),': finished loading data for',name,'...')
     list_final_clusters = [100,98,512,102] # categories per dataset
     n_final_clusters = list_final_clusters[dataset_flag] # num of clusters in dataset
-    if mini: # train on miniset for val
-        n_final_clusters = n_final_clusters/2
     try:
         n_final_clusters = arg_dict['embed_dim']
     except:
@@ -82,7 +85,7 @@ def run(arg_dict):
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
     weight_decay = arg_dict['weight_decay']
     #weight_decay = 4e-5
-    embedder = InceptionEmbedder(inception_weight_path,new_layer_width=n_final_clusters,weight_decay=weight_decay) # embedding function  
+    embedder = InceptionEmbedder(inception_weight_path,num_classes=n_final_clusters,weight_decay=weight_decay) # embedding function 
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
         embedder = PermCovarEmbedder1(n_final_clusters).compose(embedder_pointwise)
@@ -92,7 +95,8 @@ def run(arg_dict):
     obj = arg_dict['obj']
     #for_training = arg_dict['params'] == 'e2e' # don't bother learning batch statistics if training only last layer
     for_training = arg_dict['for_training']
-    model = Model(data_params, embedder, clusterer, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
+    prepro = arg_dict['preprocess']
+    model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
 
     # ckpt configs:
     sess.run(tf.global_variables_initializer())
@@ -111,11 +115,32 @@ def run(arg_dict):
                 saver.restore(sess,ckpt_path)
             nmi_score_history_prefix = np.load(project_dir+'train_nmis{}.npy'.format(name))
             loss_history_prefix = np.load(project_dir+'train_losses{}.npy'.format(name))
-    except: 
+    except:
         log_print(now(),': no previous checkpoints found for',name,'; loading from ImageNet ckpt')
         embedder.load_weights(sess)
         nmi_score_history_prefix = []
         loss_history_prefix = []
+
+    ### tensorboard summaries ###
+    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+    # Add summaries for end_points.
+    end_points = embedder.activations_dict
+    for end_point in end_points:
+      x = end_points[end_point]
+      summaries.add(tf.summary.histogram('activations/' + end_point, x))
+      summaries.add(tf.summary.scalar('sparsity/' + end_point,
+                                      tf.nn.zero_fraction(x)))
+    # Add summaries for losses.
+    #TODO: add losses to collection
+    for loss in tf.get_collection(tf.GraphKeys.LOSSES):
+      summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
+    # Add summaries for variables.
+    for variable in slim.get_model_variables():
+      summaries.add(tf.summary.histogram(variable.op.name, variable))
+    # Merge all summaries together.
+    summary_op = tf.summary.merge(list(summaries), name='summary_op')
+    tensorboard_log_dir = 'tb_log_dir'
+    train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
 
     def train(model,hyparams,name): # training procedure
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
@@ -126,13 +151,15 @@ def run(arg_dict):
         step = model.train_step # update step op
         current_batch = 0 # only relevant for ebay dataset
         for i in range(n_offset,n_steps): # main loop
+            xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # new batch
+            feed_dict = {model.x: xs, model.y: ys}
             if (i%i_log==0): # save ckpt and refresh data if need to
                 log_print(now(),': start ',i,'ckpt save for',name)
                 nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_2_save))
                 l2_2_save = list(loss_history_prefix)+loss_history
                 np.save(project_dir+'train_losses{}.npy'.format(name),np.array(l2_2_save))
-                saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i)) 
+                saver.save(sess,project_dir+"{}/step_{}.ckpt".format(name,i))
                 log_print(now(),': finish ',i,'ckpt save for',name)
                 refresh_cond = dataset_flag==2 and i%(3*i_log)==0
                 if refresh_cond:
@@ -153,21 +180,44 @@ def run(arg_dict):
                 agree = get_agree(new_dict,old_dict)
                 disagree = get_agree(new_dict,old_dict,False)
             """
-            xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # get new batch
-            #pdb.set_trace()
-            feed_dict = {model.x: xs, model.y: ys}
-            #means = model.x_means
-            #print 'means:',sess.run(means,feed_dict)
+            #tf_vs = tf.get_collection('variables')
+            #bn_test_vs = list(filter(lambda v: 'moving_v' in v.name,tf_vs))
+            #bn_test_vs_names = [v.name for v in bn_test_vs]
+            #bn_test_vs_vals = sess.run(bn_test_vs)
+            if i%100==0:
+                tbn_vs = list(filter(lambda v: 'Batch' in v.name,tf.get_collection('trainable_variables')))
+                tbn_val = sess.run(tbn_vs[-3])[0]
+                print '----------------->',tbn_val
+            o = model.optimizer
+            print sess.run([o._beta1_t,o._beta2_t,o._lr_t],feed_dict)
+            '''
+            tf_vs = tf.get_collection('variables')
+            tf_vs_names = [v.name for v in tf_vs]
+            adam_vs = list(filter(lambda v: 'Adam' in v.name,tf_vs))
+            adam_vs_names = list(filter(lambda v: 'Adam' in v.name,tf_vs))
+            embedder_vs = embedder.params
+            embedder_vs_names = [v.name for v in embedder_vs]
+            diff = list(set(tf_vs).difference(set(embedder_vs)))
+            print len(diff),'+',len(embedder_vs),'=',len(tf_vs)
+            print len(adam_vs)
+            diff2 = list(set(tf_vs).difference(set(adam_vs)))
+            print len(diff2)
+            pdb.set_trace()
+            '''
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)
 
-                _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
+                _,summary,clustering_history,clustering_diffs,loss,grads = sess.run([step,summary_op,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
+
+                summary = sess.run(summary_op,feed_dict)
+                train_writer.add_summary(summary,i)
+
                 clustering = clustering_history[-1]
                 nmi_score = skl_nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
                 toc = now()
                 log_print(toc,': after: ',nmi_score)
-                log_print('elapsed:',toc-tic) 
+                log_print('elapsed:',toc-tic)
                 nmi_score_history.append(nmi_score)
                 loss_history.append(loss)
                 log_print("clustring diffs:",clustering_diffs)
@@ -175,16 +225,17 @@ def run(arg_dict):
                 log_print(now(),': error occured in train loop for: ',name)
                 exc =  sys.exc_info()
                 traceback.print_exception(*exc)
-                print 'exception for:',name 
+                print 'exception for:',name
                 pdb.set_trace()
 
         log_print(now(),': train_nmis:',nmi_score_history)
+        train_writer.close()
         return nmi_score_history,test_scores
 
     log_print(now(),': begin training')
     # end-to-end training:
-    i_log = 100 # save ckpt every i_log iters 
-    n_train_iters = 3000
+    i_log = 100 # save ckpt every i_log iters
+    n_train_iters = 30
     if mini:
         n_train_iters = 500
     hyparams = [n_train_iters*i_log,k,n_,i_log]
@@ -198,20 +249,19 @@ def run(arg_dict):
             exit()
             pdb.set_trace()
     else:
-        log_print(now(),': not training e2e')
-        log_print(now(),': starting last-layer training')
+        log_print(now(),': last-layer training')
         if arg_dict['permcovar']:
             filter_cond = lambda v: 'PermCovar' in str(v)
         else:
             #filter_cond = lambda x: ("new_layer" in str(x) or "Logits" in str(x)) and not ("Aux" in str(x))
-            filter_cond = lambda x: ("new_layer" in str(x))
+            filter_cond = lambda x: ("Logits" in str(x))
         #permcovar_params = filter(filter_cond,tf.global_variables())
         last_layer_params = filter(filter_cond,tf.global_variables())
-        if not arg_dict['permcovar']: last_layer_params.append(embedder.new_layer_w)
+        #if not arg_dict['permcovar']: last_layer_params.append(embedder.new_layer_w)
         model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
         train_nmis,test_scores_ll = train(model,hyparams,name)
     #save_path = embedder.save_weights(sess)
-    log_print(now(),': end training') 
+    log_print(now(),': end training')
     return train_nmis
 
 # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
