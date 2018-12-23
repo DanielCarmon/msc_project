@@ -4,6 +4,9 @@ import os.path
 os.environ["OMP_NUM_THREADS"] = "1" 
 os.environ["MKL_NUM_THREADS"] = "1" 
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
+os.environ["KMP_BLOCKTIME"] = "0"
+os.environ["KMP_SETTINGS"] = "1"
+os.environ["KMP_AFFINITY"]= "granularity=fine,verbose,compact,1,0"
 import glob
 import tensorflow as tf
 import traceback
@@ -111,6 +114,8 @@ def run(arg_dict):
       summaries.add(tf.summary.histogram('activations/' + end_point, x))
       summaries.add(tf.summary.scalar('sparsity/' + end_point,
                                       tf.nn.zero_fraction(x)))
+    # add scalar activation
+    summaries.add(tf.summary.scalar('check',model.x_preprocessed[0][0][0][0]))
     # Add summaries for losses.
     for loss in [model.loss]:
       summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
