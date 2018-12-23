@@ -262,11 +262,11 @@ for i in range_checkpoints:
 
     #data = refresh_data()
     ## sample permutation
-    n_data = all_data[0].shape[0]
-    perm = np.random.permutation(np.arange(n_data))
-    def apply_perm(data,perm):
-        data[0] = data[0][perm]
-        data[1] = data[1][perm]
+    #n_data = all_data[0].shape[0]
+    #perm = np.random.permutation(np.arange(n_data))
+    #def apply_perm(data,perm):
+    #    data[0] = data[0][perm]
+    #    data[1] = data[1][perm]
     #apply_perm(all_data,perm)
     data = all_data
     result = test(data,use_permcovar)

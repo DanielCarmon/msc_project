@@ -52,7 +52,11 @@ clusterer = None
 def run(arg_dict):
     global embedder, clusterer, data_params, k, sess # initialized as None. kept as global for access in debugger mode
     name = arg_dict['name']
-    # dataset configs:
+
+    ###############
+    # data config #
+    ###############
+    d = 299 # inception input size = [d,d]
     dataset_flag = arg_dict['dataset']
     mini = arg_dict['mini']
     log_print(now(),': started loading data for',name,'...')
@@ -65,26 +69,25 @@ def run(arg_dict):
     except:
         log_print('no embed dim specified. using default:',n_final_clusters)
     # batch configs:
-    d = 299 # inception input size = [d,d]
     k = arg_dict['n_classes'] # clusters per batch
     n_gpu_can_handle = 100 # batch size
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
     data_params = [n, d]
-
-    # data handle configs:
+    # ebay data configs:
     recompute_ys = dataset_flag==2 # only recompute for products dataset
     n_ebay_batches = 50 # number of preprocessed samples for products dataset
 
-    # model configs:
+    ################
+    # model config #
+    ################
     clst_module = arg_dict['cluster'] # clusterer to use
     hp = arg_dict['cluster_hp'] # see arg_parser
-    lr = arg_dict['lr'] # base learning-rate for inception
+    lr = arg_dict['lr'] # base learning-rate
     use_tg = arg_dict['use_tg'] # use aux gradients
     init = arg_dict['init'] # init method for clusterer
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
     weight_decay = arg_dict['weight_decay']
-    #weight_decay = 4e-5
     embedder = InceptionEmbedder(inception_weight_path,num_classes=n_final_clusters,weight_decay=weight_decay) # embedding function 
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
@@ -93,12 +96,36 @@ def run(arg_dict):
     log_print(now(),': building model for',name)
     log_grads = False
     obj = arg_dict['obj']
-    #for_training = arg_dict['params'] == 'e2e' # don't bother learning batch statistics if training only last layer
     for_training = arg_dict['for_training']
     prepro = arg_dict['preprocess']
     model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
 
-    # ckpt configs:
+    #############################
+    ### tensorboard summaries ###
+    #############################
+    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+    # Add summaries for end_points.
+    end_points = embedder.activations_dict
+    for end_point in end_points:
+      x = end_points[end_point]
+      summaries.add(tf.summary.histogram('activations/' + end_point, x))
+      summaries.add(tf.summary.scalar('sparsity/' + end_point,
+                                      tf.nn.zero_fraction(x)))
+    # Add summaries for losses.
+    for loss in [model.loss]:
+      summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
+    # Add summaries for variables.
+    for variable in slim.get_model_variables():
+      if 'Aux' not in variable.name:
+          summaries.add(tf.summary.histogram(variable.op.name, variable))
+    # Merge all summaries together.
+    summary_op = tf.summary.merge(list(summaries), name='summary_op')
+    tensorboard_log_dir = 'tb_log_dir'+name
+    train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
+
+    #######################
+    # checkpoints configs #
+    #######################
     sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     n_offset = 0 # no. of previous checkpoints
@@ -121,31 +148,11 @@ def run(arg_dict):
         nmi_score_history_prefix = []
         loss_history_prefix = []
 
-    ### tensorboard summaries ###
-    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-    # Add summaries for end_points.
-    end_points = embedder.activations_dict
-    for end_point in end_points:
-      x = end_points[end_point]
-      summaries.add(tf.summary.histogram('activations/' + end_point, x))
-      summaries.add(tf.summary.scalar('sparsity/' + end_point,
-                                      tf.nn.zero_fraction(x)))
-    # Add summaries for losses.
-    #TODO: add losses to collection
-    for loss in tf.get_collection(tf.GraphKeys.LOSSES):
-      summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
-    # Add summaries for variables.
-    for variable in slim.get_model_variables():
-      summaries.add(tf.summary.histogram(variable.op.name, variable))
-    # Merge all summaries together.
-    summary_op = tf.summary.merge(list(summaries), name='summary_op')
-    tensorboard_log_dir = 'tb_log_dir'
-    train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
-
     def train(model,hyparams,name): # training procedure
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
         n_steps,k,n_,i_log  = hyparams
+        i_tensorboard = 10
         loss_history = []
         nmi_score_history = []
         step = model.train_step # update step op
@@ -207,11 +214,13 @@ def run(arg_dict):
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)
+                if i%i_tensorboard==0:
+                    _,summary,clustering_history,clustering_diffs,loss,grads = sess.run([step,summary_op,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
 
-                _,summary,clustering_history,clustering_diffs,loss,grads = sess.run([step,summary_op,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
-
-                summary = sess.run(summary_op,feed_dict)
-                train_writer.add_summary(summary,i)
+                    summary = sess.run(summary_op,feed_dict)
+                    train_writer.add_summary(summary,i)
+                else:
+                    _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
 
                 clustering = clustering_history[-1]
                 nmi_score = skl_nmi(np.argmax(clustering, 1), np.argmax(ys, 1))
@@ -232,10 +241,13 @@ def run(arg_dict):
         train_writer.close()
         return nmi_score_history,test_scores
 
+    ##################
+    # start training #
+    ##################
     log_print(now(),': begin training')
     # end-to-end training:
     i_log = 100 # save ckpt every i_log iters
-    n_train_iters = 30
+    n_train_iters = 3000
     if mini:
         n_train_iters = 500
     hyparams = [n_train_iters*i_log,k,n_,i_log]
