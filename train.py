@@ -1,9 +1,9 @@
 import os
 import os.path
 #os.environ['TF_CPP_MIN_VLOG_LEVEL']='3'
-os.environ["OMP_NUM_THREADS"] = "1" 
-os.environ["MKL_NUM_THREADS"] = "1" 
-os.environ["NUMEXPR_NUM_THREADS"] = "1" 
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["KMP_BLOCKTIME"] = "0"
 os.environ["KMP_SETTINGS"] = "1"
 os.environ["KMP_AFFINITY"]= "granularity=fine,verbose,compact,1,0"
@@ -91,7 +91,7 @@ def run(arg_dict):
     init = arg_dict['init'] # init method for clusterer
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
     weight_decay = arg_dict['weight_decay']
-    embedder = InceptionEmbedder(inception_weight_path,num_classes=n_final_clusters,weight_decay=weight_decay) # embedding function 
+    embedder = InceptionEmbedder(inception_weight_path,num_classes=n_final_clusters,weight_decay=weight_decay) # embedding function
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
         embedder = PermCovarEmbedder1(n_final_clusters).compose(embedder_pointwise)
@@ -219,11 +219,14 @@ def run(arg_dict):
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)
-                if i%i_tensorboard==0:
-                    _,summary,clustering_history,clustering_diffs,loss,grads = sess.run([step,summary_op,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
+                if i%i_tensorboard==0: # save summaries for tensorboard
+                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata = tf.RunMetadata()
+                    _,summary,clustering_history,clustering_diffs,loss,grads = sess.run([step,summary_op,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], options=run_options, run_metadata=run_metadata,feed_dict=feed_dict)
 
                     summary = sess.run(summary_op,feed_dict)
                     train_writer.add_summary(summary,i)
+                    train_writer.add_run_metadata(run_metadata,'step'+str(i))
                 else:
                     _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
 
