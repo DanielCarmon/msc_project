@@ -80,32 +80,50 @@ def run(arg_dict):
     # ebay data configs:
     recompute_ys = dataset_flag==2 # only recompute for products dataset
     n_ebay_batches = 50 # number of preprocessed samples for products dataset
+    log_print(now(),': finished data config')
 
-    ################
-    # model config #
-    ################
-    clst_module = arg_dict['cluster'] # clusterer to use
-    hp = arg_dict['cluster_hp'] # see arg_parser
-    lr = arg_dict['lr'] # base learning-rate
-    use_tg = arg_dict['use_tg'] # use aux gradients
-    init = arg_dict['init'] # init method for clusterer
+    ###################
+    # embedder config #
+    ###################
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
     weight_decay = arg_dict['weight_decay']
     embedder = InceptionEmbedder(inception_weight_path,num_classes=n_final_clusters,weight_decay=weight_decay) # embedding function
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
         embedder_pointwise = embedder
         embedder = PermCovarEmbedder1(n_final_clusters).compose(embedder_pointwise)
-    clusterer = clst_module([n,n_final_clusters], k, hp, n_iters=arg_dict['n_iters'],init=init)
+    log_print(now(),': finished embedder config')
+
+    #################### 
+    # clusterer config #
+    #################### 
+    clst_module = arg_dict['cluster'] # clusterer to use
+    init = arg_dict['init'] # init method for clusterer
+    em_bw, gumbel_temp, softmin_bw = arg_dict['em_bw'],arg_dict['gumbel_temp'],arg_dict['softmin_bw'] 
+    bw_params = [em_bw,gumbel_temp,softmin_bw]
+    clusterer = clst_module([n,n_final_clusters], k, bw_params, n_iters=arg_dict['n_iters'],init=init)
+    log_print(now(),': finished clusterer config')
+
+    ###################
+    # training config #
+    ###################
     log_print(now(),': building model for',name)
     log_grads = False
-    obj = arg_dict['obj']
     for_training = arg_dict['for_training']
+    obj = arg_dict['obj']
     prepro = arg_dict['preprocess']
+    lr = arg_dict['lr'] # base learning-rate
+    use_tg = arg_dict['use_tg'] # use aux gradients
     model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
+    n_train_iters = 3000
+    if mini:
+        n_train_iters = 500
+    i_log = 100 # save ckpt every i_log iters
+    hyparams = [n_train_iters*i_log,k,n_,i_log]
+    log_print(now(),': finished training config')
 
-    #############################
-    ### tensorboard summaries ###
-    #############################
+    ######################
+    # tensorboard config #
+    ######################
     summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
     # Add summaries for end_points.
     end_points = embedder.activations_dict
@@ -127,10 +145,11 @@ def run(arg_dict):
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
     tensorboard_log_dir = 'tb_log_dir'+name
     train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
+    log_print(now(),': finished tensorboard config')
 
-    #######################
-    # checkpoints configs #
-    #######################
+    ######################
+    # checkpoints config #
+    ######################
     sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver(tf.global_variables(),max_to_keep=None)
     n_offset = 0 # no. of previous checkpoints
@@ -152,6 +171,7 @@ def run(arg_dict):
         embedder.load_weights(sess)
         nmi_score_history_prefix = []
         loss_history_prefix = []
+    log_print(now(),': finished checkpoints config')
 
     def train(model,hyparams,name): # training procedure
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
@@ -249,16 +269,10 @@ def run(arg_dict):
         train_writer.close()
         return nmi_score_history,test_scores
 
-    ##################
-    # start training #
-    ##################
+    ######################
+    # kickstart training #
+    ######################
     log_print(now(),': begin training')
-    # end-to-end training:
-    i_log = 100 # save ckpt every i_log iters
-    n_train_iters = 3000
-    if mini:
-        n_train_iters = 500
-    hyparams = [n_train_iters*i_log,k,n_,i_log]
     test_scores_e2e = []
     test_scores_ll = []
     if arg_dict['params']!="last":
@@ -267,20 +281,15 @@ def run(arg_dict):
         except:
             print get_tb()
             exit()
-            pdb.set_trace()
     else:
         log_print(now(),': last-layer training')
         if arg_dict['permcovar']:
             filter_cond = lambda v: 'PermCovar' in str(v)
         else:
-            #filter_cond = lambda x: ("new_layer" in str(x) or "Logits" in str(x)) and not ("Aux" in str(x))
             filter_cond = lambda x: ("Logits" in str(x))
-        #permcovar_params = filter(filter_cond,tf.global_variables())
         last_layer_params = filter(filter_cond,tf.global_variables())
-        #if not arg_dict['permcovar']: last_layer_params.append(embedder.new_layer_w)
         model.train_step = model.optimizer.minimize(model.loss, var_list=last_layer_params) # freeze all other weights
         train_nmis,test_scores_ll = train(model,hyparams,name)
-    #save_path = embedder.save_weights(sess)
     log_print(now(),': end training')
     return train_nmis
 

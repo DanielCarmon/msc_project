@@ -32,7 +32,7 @@ class GDKMeansPlusPlus(BaseClusterer):
         self.curr_step = 0
         self.n_iters = n_iters
         self.k = k
-        self.n, self.d = tuple(data_params) 
+        self.n, self.d = tuple(data_params)
         self.planted_values = planted_values
         self.grad_log = []
         self.cost_log = []
@@ -79,8 +79,8 @@ class GDKMeansPlusPlus(BaseClusterer):
         dist_mat = GDKMeansPlusPlus.get_dist_mat(data, old_centroids)
         means = tf.reduce_mean(dist_mat, 1)
         dist_mat_normed = dist_mat - means[:, None]
-        bandwidth = 0.05
-        softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, axis=1)  # softmin
+        bw = 0.05
+        softmin_mat = tf.nn.softmax(-bw * dist_mat_normed, axis=1)  # softmin
         D = softmin_mat * dist_mat  # elementwise
         D = tf.reduce_sum(D, 1)
         D = D / tf.reduce_sum(D)
@@ -121,7 +121,7 @@ class GDKMeansPlusPlus(BaseClusterer):
         self.diff_history.append(diff)
         ""
         self.history_list.append(self.get_membership_matrix(self.c, self.x))  # log
-    
+
     @staticmethod
     def obj_f(c, x):
         membership_matrix = get_membership_matrix(c, x)
@@ -141,9 +141,10 @@ class GDKMeansPlusPlus(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, bandwidth = 0.5, n_iters=20,init=0):
+    def __init__(self, data_params, k, bw_params, n_iters=20,init=0):
         self.n_iters = n_iters
-        self.bandwidth = bandwidth
+        self.em_bw, self.gumbel_temp, self.softmin_bw = bw_params
+        pdb.set_trace()
         self.init = init
         self.k = k # no. clusters
         self.n, self.d = tuple(data_params) # n = batch size, d = data dim
@@ -167,7 +168,7 @@ class EMClusterer(BaseClusterer):
         return dist_mat
 
     @staticmethod
-    def get_prob_vector(data, old_centroids):
+    def get_prob_vector(data, old_centroids,softmin_bw):
         '''
         input:
             data - [n,d] data matrix
@@ -179,26 +180,21 @@ class EMClusterer(BaseClusterer):
         dist_mat = EMClusterer.get_dist_mat(data, old_centroids)
         means = tf.reduce_mean(dist_mat, 1)
         dist_mat_normed = dist_mat - means[:, None]
-        ##bandwidth = 0.05 @low_temp
-        bandwidth = 5
-        softmin_mat = tf.nn.softmax(-bandwidth * dist_mat_normed, axis=1)  # softmin
+        softmin_mat = tf.nn.softmax(-softmin_bw * dist_mat_normed, axis=1)  # softmin
         D = softmin_mat * dist_mat  # elementwise
         D = tf.reduce_sum(D, 1)
         D = D / tf.reduce_sum(D)
         return D
 
     @staticmethod
-    def centroid_choice_layer(data, old_centroids):
+    def centroid_choice_layer(data, old_centroids,gumbel_temp,softmin_bw):
         global prob_vector, new_centroid_coeffs
-        prob_vector = EMClusterer.get_prob_vector(data,
-                                      old_centroids)  # [n]. normalized (i.e a probability inducing) vector of soft-min distances from old centroids
-        ##eps = 1e-6 #@low_temp
+        prob_vector = EMClusterer.get_prob_vector(data,old_centroids,softmin_bw)  # [n]. normalized (i.e a probability inducing) vector of soft-min distances from old centroids
         eps = 1e-3
         prob_vector += eps
         prob_vector /= tf.reduce_sum(prob_vector)
         relaxedOneHot = tf.contrib.distributions.RelaxedOneHotCategorical
-        ##dist = relaxedOneHot(temperature=.05, probs=prob_vector) #@low_temp
-        dist = relaxedOneHot(temperature=5., probs=prob_vector)
+        dist = relaxedOneHot(temperature=gumbel_temp, probs=prob_vector)
         new_centroid_coeffs = dist.sample()  # differentiable op. shape [n]
         new_centroid = tf.matmul(new_centroid_coeffs[None, :], data)
         old_centroids = tf.concat([old_centroids, new_centroid], 0)
@@ -213,12 +209,12 @@ class EMClusterer(BaseClusterer):
         cases of self.init:
         0: Random init
         1: Fixed-Random init. Same random init every call. randomness sampled at compile time
-        2: Soft-Kmeans++ init. 
+        2: Soft-Kmeans++ init.
         '''
         if self.init==0:
             print 'using init 0'
             self.theta = tf.random_normal([self.k, self.d], seed=2018, name='theta_0') # seed fixed randomness at sess level. every sess run this gives a new value
-        elif self.init==1:    
+        elif self.init==1:
             print 'using init 1'
             np.random.seed(2018)
             rand_init = np.random.normal(size=[self.k,self.d])
@@ -229,13 +225,13 @@ class EMClusterer(BaseClusterer):
             data = self.x
             old_centroids = EMClusterer.init_first_centroid(data)
             for i in range(self.k-1):
-                old_centroids = EMClusterer.centroid_choice_layer(data,old_centroids)
+                old_centroids = EMClusterer.centroid_choice_layer(data,old_centroids,self.gumbel_temp,self.softmin_bw)
             self.theta = old_centroids
 
         self.history_list = []
         self.diff_history = []
     def update_params(self):
-        self.z = self.infer_z(self.x, self.theta, self.bandwidth)
+        self.z = self.infer_z(self.x, self.theta, self.em_bw)
         old_theta = self.theta
         self.theta = self.infer_theta(self.x, self.z)  # update
         diff = tf.reduce_sum((old_theta-self.theta)**2)
@@ -252,12 +248,12 @@ class EMClusterer(BaseClusterer):
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids
         return theta
     @staticmethod
-    def infer_z(x, theta, bandwidth):
+    def infer_z(x, theta, bw):
         outer_subtraction = tf.subtract(x[:, :, None], tf.transpose(theta), name='out_sub')  # [n,d,k]
         z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
-        z = tf.nn.softmax(bandwidth*z, axis=1)
+        z = tf.nn.softmax(bw*z, axis=1)
         #check = tf.is_nan(tf.reduce_sum(z))
         #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z
