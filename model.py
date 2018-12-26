@@ -56,38 +56,44 @@ class Model:
         self.embedder = embedder
         self.clusterer = clusterer
         self.n, self.d = tuple(data_params)
-        if is_img:
-            self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
-        else:
-            self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
-        if prepro!='old':
-            ## new preprocess:
-            self.x = tf.cast(self.x, tf.float32)
-            self.x_centered = tf.subtract(self.x, 0.5)
-            self.x_preprocessed = tf.multiply(self.x_centered, 2.0)
-            stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
-            self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
-        else:
-            ## old preprocess:
-            self.x_preprocessed = tf.cast(self.x,tf.float32)
-            stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
-            self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
-        self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
-        self.y = tf.cast(self.y, tf.float32)
-        self.x_embed = self.embedder.embed(self.x_preprocessed,for_training) # embeddings tensor
-        ##self.x_embed = tf.Print(self.x_embed, [self.x_embed], "x_embed:", summarize=10)
+        with tf.name_scope('data') as scope:
+            if is_img:
+                self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
+            else:
+                self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
+        with tf.name_scope('preprocess') as scope:
+            if prepro!='old':
+                ## new preprocess:
+                self.x = tf.cast(self.x, tf.float32)
+                self.x_centered = tf.subtract(self.x, 0.5)
+                self.x_preprocessed = tf.multiply(self.x_centered, 2.0)
+                stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
+                self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
+            else:
+                ## old preprocess:
+                self.x_preprocessed = tf.cast(self.x,tf.float32)
+                stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
+                self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
+        with tf.name_scope('ground_truth') as scope:
+            self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
+            self.y = tf.cast(self.y, tf.float32)
+        with tf.name_scope('embedder') as scope:
+            self.x_embed = self.embedder.embed(self.x_preprocessed,for_training) # embeddings tensor
         self.lr = lr
-        self.optimizer = self.optimizer_class(lr)
-        self.clusterer.set_data(self.x_embed) # compose clusterer on top of embedder
-        self.clustering = self.clusterer.infer_clustering() # get output clustering
+        with tf.name_scope('optimizer') as scope:
+            self.optimizer = self.optimizer_class(lr)
+        with tf.name_scope('clusterer') as scope:
+            self.clusterer.set_data(self.x_embed) # compose clusterer on top of embedder
+            self.clustering = self.clusterer.infer_clustering() # get output clustering
         # compose loss func on top of output clustering:
-        if obj=='L2':
-            self.loss = self.L2_loss(self.clustering, self.y, use_tg)
-        elif obj=='nmi':
-            self.loss = self.NMI_loss(self.clustering, self.y, use_tg)
-        else:
-            print 'Error: Unsupported objective "',obj,'"'
-            exit()
+        with tf.name_scope('loss') as scope:
+            if obj=='L2':
+                self.loss = self.L2_loss(self.clustering, self.y, use_tg)
+            elif obj=='nmi':
+                self.loss = self.NMI_loss(self.clustering, self.y, use_tg)
+            else:
+                print 'Error: Unsupported objective "',obj,'"'
+                exit()
         if log_grads:
             self.pre_grads = tf.gradients(self.loss, embedder.params)
             self.grads = filter((lambda x: x!=None),self.pre_grads) # remove None gradients from tf's batch norm params.
@@ -96,18 +102,11 @@ class Model:
             self.grads = tf.constant(-1)
             self.loss = tf.Print(self.loss,[self.loss], 'loss:')
         #self.loss = tf.Print(self.loss, [self.loss], 'loss:')
-        regularizer,beta = 0.,0.
-        if regularize:
-            for param in self.embedder.params:
-                print 'regularizing ',param
-                regularizer += tf.nn.l2_loss(param)
-        self.loss = beta*regularizer + self.loss
-        print 'building optimizer'
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS) # tf.GraphKeys.UPDATE_OPS == 'update_ops'
         #pdb.set_trace()
-        #update_ops = None
-        with tf.control_dependencies(update_ops):
-            self.train_step = self.optimizer.minimize(self.loss,global_step=tf.train.get_global_step())
+        with tf.name_scope('train_op') as scope:
+            with tf.control_dependencies(update_ops):
+                self.train_step = self.optimizer.minimize(self.loss,global_step=tf.train.get_global_step())
     @staticmethod
     def L2_loss(y_pred, y, use_tg):
         '''

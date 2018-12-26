@@ -124,27 +124,28 @@ def run(arg_dict):
     ######################
     # tensorboard config #
     ######################
-    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-    # Add summaries for end_points.
-    end_points = embedder.activations_dict
-    for end_point in end_points:
-      x = end_points[end_point]
-      summaries.add(tf.summary.histogram('activations/' + end_point, x))
-      summaries.add(tf.summary.scalar('sparsity/' + end_point,
-                                      tf.nn.zero_fraction(x)))
-    # add scalar activation
-    summaries.add(tf.summary.scalar('check',model.x_preprocessed[0][0][0][0]))
-    # Add summaries for losses.
-    for loss in [model.loss]:
-      summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
-    # Add summaries for variables.
-    for variable in slim.get_model_variables():
-      if 'Aux' not in variable.name:
-          summaries.add(tf.summary.histogram(variable.op.name, variable))
-    # Merge all summaries together.
-    summary_op = tf.summary.merge(list(summaries), name='summary_op')
-    tensorboard_log_dir = 'tb_log_dir'+name
-    train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
+    with tf.name_scope('tensorboard_ops') as scope:
+        summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+        # Add summaries for end_points.
+        end_points = embedder.activations_dict
+        for end_point in end_points:
+          x = end_points[end_point]
+          summaries.add(tf.summary.histogram('activations/' + end_point, x))
+          summaries.add(tf.summary.scalar('sparsity/' + end_point,
+                                          tf.nn.zero_fraction(x)))
+        # add scalar activation
+        summaries.add(tf.summary.scalar('check',model.x_preprocessed[0][0][0][0]))
+        # Add summaries for losses.
+        for loss in [model.loss]:
+          summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
+        # Add summaries for variables.
+        for variable in slim.get_model_variables():
+          if 'Aux' not in variable.name:
+              summaries.add(tf.summary.histogram(variable.op.name, variable))
+        # Merge all summaries together.
+        summary_op = tf.summary.merge(list(summaries), name='summary_op')
+        tensorboard_log_dir = 'tb_log_dir'+name
+        train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
     log_print(now(),': finished tensorboard config')
 
     ######################

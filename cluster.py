@@ -144,7 +144,6 @@ class EMClusterer(BaseClusterer):
     def __init__(self, data_params, k, bw_params, n_iters=20,init=0):
         self.n_iters = n_iters
         self.em_bw, self.gumbel_temp, self.softmin_bw = bw_params
-        pdb.set_trace()
         self.init = init
         self.k = k # no. clusters
         self.n, self.d = tuple(data_params) # n = batch size, d = data dim
