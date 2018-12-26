@@ -124,28 +124,31 @@ def run(arg_dict):
     ######################
     # tensorboard config #
     ######################
-    with tf.name_scope('tensorboard_ops') as scope:
-        summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-        # Add summaries for end_points.
-        end_points = embedder.activations_dict
-        for end_point in end_points:
-          x = end_points[end_point]
-          summaries.add(tf.summary.histogram('activations/' + end_point, x))
-          summaries.add(tf.summary.scalar('sparsity/' + end_point,
-                                          tf.nn.zero_fraction(x)))
-        # add scalar activation
-        summaries.add(tf.summary.scalar('check',model.x_preprocessed[0][0][0][0]))
-        # Add summaries for losses.
-        for loss in [model.loss]:
-          summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
-        # Add summaries for variables.
-        for variable in slim.get_model_variables():
-          if 'Aux' not in variable.name:
-              summaries.add(tf.summary.histogram(variable.op.name, variable))
-        # Merge all summaries together.
-        summary_op = tf.summary.merge(list(summaries), name='summary_op')
-        tensorboard_log_dir = 'tb_log_dir'+name
-        train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
+    summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+    # Add summaries for end_points.
+    end_points = embedder.activations_dict
+    for end_point in end_points:
+      x = end_points[end_point]
+      summaries.add(tf.summary.histogram('activations/' + end_point, x))
+      #summaries.add(tf.summary.scalar('sparsity/' + end_point,
+      #                                tf.nn.zero_fraction(x)))
+    # Add summaries for losses.
+    for loss in [model.loss]:
+      summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
+    # Add summaries for variables.
+    for variable in slim.get_model_variables():
+        if 'Aux' not in variable.name:
+          summaries.add(tf.summary.scalar('max/'+variable.op.name, tf.reduce_max(variable)))
+          summaries.add(tf.summary.scalar('min/'+variable.op.name, tf.reduce_min(variable)))
+          summaries.add(tf.summary.scalar('mean/'+variable.op.name, tf.reduce_mean(variable)))
+          with tf.name_scope('std_dev') as scope:
+              std_dev = tf.sqrt(tf.reduce_mean(tf.square(variable - tf.reduce_mean(variable))))
+          summaries.add(tf.summary.scalar('std_dev/'+variable.op.name,std_dev))
+          summaries.add(tf.summary.histogram('variables/' + variable.op.name, variable))
+    # Merge all summaries together.
+    summary_op = tf.summary.merge(list(summaries), name='summary_op')
+    tensorboard_log_dir = 'tb_log_dir'+name
+    train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
     log_print(now(),': finished tensorboard config')
 
     ######################
@@ -199,44 +202,6 @@ def run(arg_dict):
                     refresh_train_data_and_ls(dataset_flag,current_batch=current_batch) # load new dataset to ram
                     current_batch+=1
                     current_batch%=n_ebay_batches
-            """
-            param = embedder.params[0]
-            vars_to_restore = sess.graph.get_collection('variables')
-            batch_norm_vars = list(set(vars_to_restore).difference(set(embedder.params)))
-            batch_norm_vars = list(filter(lambda v: 'new_layer' not in v.name,batch_norm_vars))
-            bn_param = batch_norm_vars[0]
-            print_val(bn_param,sess)
-            print_val(param,sess)
-            old_dict = new_dict
-            new_dict = get_act_dict()
-            if not old_dict is None:
-                agree = get_agree(new_dict,old_dict)
-                disagree = get_agree(new_dict,old_dict,False)
-            """
-            #tf_vs = tf.get_collection('variables')
-            #bn_test_vs = list(filter(lambda v: 'moving_v' in v.name,tf_vs))
-            #bn_test_vs_names = [v.name for v in bn_test_vs]
-            #bn_test_vs_vals = sess.run(bn_test_vs)
-            if i%100==0:
-                tbn_vs = list(filter(lambda v: 'Batch' in v.name,tf.get_collection('trainable_variables')))
-                tbn_val = sess.run(tbn_vs[-3])[0]
-                print '----------------->',tbn_val
-            o = model.optimizer
-            print sess.run([o._beta1_t,o._beta2_t,o._lr_t],feed_dict)
-            '''
-            tf_vs = tf.get_collection('variables')
-            tf_vs_names = [v.name for v in tf_vs]
-            adam_vs = list(filter(lambda v: 'Adam' in v.name,tf_vs))
-            adam_vs_names = list(filter(lambda v: 'Adam' in v.name,tf_vs))
-            embedder_vs = embedder.params
-            embedder_vs_names = [v.name for v in embedder_vs]
-            diff = list(set(tf_vs).difference(set(embedder_vs)))
-            print len(diff),'+',len(embedder_vs),'=',len(tf_vs)
-            print len(adam_vs)
-            diff2 = list(set(tf_vs).difference(set(adam_vs)))
-            print len(diff2)
-            pdb.set_trace()
-            '''
             try:
                 tic = now()
                 log_print(tic,': train iter',i,'for',name)
