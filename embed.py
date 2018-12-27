@@ -155,8 +155,8 @@ class InceptionEmbedder(BaseEmbedder):
         print 'start loading pre-trained weights'
         vars_to_restore = sess.graph.get_collection('variables')
         self.batch_norm_vars = list(set(vars_to_restore).difference(set(self.params)))
-        self.batch_norm_vars = list(filter(lambda v: 'new_layer' not in v.name,self.batch_norm_vars))
         vars_to_restore = list(filter(lambda v: 'Logits' not in v.name,vars_to_restore))
+        vars_to_restore = list(filter(lambda v: 'Adam' not in v.name,vars_to_restore))
         restorer = slim.assign_from_checkpoint_fn(
               self.weight_file,
               vars_to_restore,

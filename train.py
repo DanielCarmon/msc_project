@@ -86,6 +86,8 @@ def run(arg_dict):
     # embedder config #
     ###################
     inception_weight_path = "/specific/netapp5_2/gamir/carmonda/research/vision/new_inception/models/tmp/my_checkpoints/inception_v3.ckpt" # params pre-trained on ImageNet
+    if 'reretrain' in arg_dict.keys() and arg_dict['reretrain']:
+        inception_weight_path = project_dir+'e2e_baseline/step_30000.ckpt'
     weight_decay = arg_dict['weight_decay']
     embedder = InceptionEmbedder(inception_weight_path,num_classes=n_final_clusters,weight_decay=weight_decay) # embedding function
     if arg_dict['permcovar']: # if using permcovar layers. still experimental
@@ -93,12 +95,12 @@ def run(arg_dict):
         embedder = PermCovarEmbedder1(n_final_clusters).compose(embedder_pointwise)
     log_print(now(),': finished embedder config')
 
-    #################### 
+    ####################
     # clusterer config #
-    #################### 
+    ####################
     clst_module = arg_dict['cluster'] # clusterer to use
     init = arg_dict['init'] # init method for clusterer
-    em_bw, gumbel_temp, softmin_bw = arg_dict['em_bw'],arg_dict['gumbel_temp'],arg_dict['softmin_bw'] 
+    em_bw, gumbel_temp, softmin_bw = arg_dict['em_bw'],arg_dict['gumbel_temp'],arg_dict['softmin_bw']
     bw_params = [em_bw,gumbel_temp,softmin_bw]
     clusterer = clst_module([n,n_final_clusters], k, bw_params, n_iters=arg_dict['n_iters'],init=init)
     log_print(now(),': finished clusterer config')
@@ -114,7 +116,7 @@ def run(arg_dict):
     lr = arg_dict['lr'] # base learning-rate
     use_tg = arg_dict['use_tg'] # use aux gradients
     model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
-    n_train_iters = 3000
+    n_train_iters = 300
     if mini:
         n_train_iters = 500
     i_log = 100 # save ckpt every i_log iters
@@ -141,9 +143,9 @@ def run(arg_dict):
           summaries.add(tf.summary.scalar('max/'+variable.op.name, tf.reduce_max(variable)))
           summaries.add(tf.summary.scalar('min/'+variable.op.name, tf.reduce_min(variable)))
           summaries.add(tf.summary.scalar('mean/'+variable.op.name, tf.reduce_mean(variable)))
-          with tf.name_scope('std_dev') as scope:
-              std_dev = tf.sqrt(tf.reduce_mean(tf.square(variable - tf.reduce_mean(variable))))
-          summaries.add(tf.summary.scalar('std_dev/'+variable.op.name,std_dev))
+          #with tf.name_scope('std_dev') as scope:
+          #    std_dev = tf.sqrt(tf.reduce_mean(tf.square(variable - tf.reduce_mean(variable))))
+          #summaries.add(tf.summary.scalar('std_dev/'+variable.op.name,std_dev))
           summaries.add(tf.summary.histogram('variables/' + variable.op.name, variable))
     # Merge all summaries together.
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
@@ -181,7 +183,7 @@ def run(arg_dict):
         global test_scores_em,test_scores_km # global so it could be reached at debug pm mode
         test_scores = []
         n_steps,k,n_,i_log  = hyparams
-        i_tensorboard = 10
+        i_tensorboard = 100
         loss_history = []
         nmi_score_history = []
         step = model.train_step # update step op
