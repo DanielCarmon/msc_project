@@ -102,7 +102,8 @@ def run(arg_dict):
     init = arg_dict['init'] # init method for clusterer
     em_bw, gumbel_temp, softmin_bw = arg_dict['em_bw'],arg_dict['gumbel_temp'],arg_dict['softmin_bw']
     bw_params = [em_bw,gumbel_temp,softmin_bw]
-    clusterer = clst_module([n,n_final_clusters], k, bw_params, n_iters=arg_dict['n_iters'],init=init)
+    infer_covar = arg_dict['infer_covar']
+    clusterer = clst_module([n,n_final_clusters], k, bw_params, n_iters=arg_dict['n_iters'],init=init,infer_covar=infer_covar)
     log_print(now(),': finished clusterer config')
 
     ###################
@@ -116,7 +117,7 @@ def run(arg_dict):
     lr = arg_dict['lr'] # base learning-rate
     use_tg = arg_dict['use_tg'] # use aux gradients
     model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
-    n_train_iters = 300
+    n_train_iters = 1000
     if mini:
         n_train_iters = 500
     i_log = 100 # save ckpt every i_log iters

@@ -141,13 +141,13 @@ class GDKMeansPlusPlus(BaseClusterer):
 
 
 class EMClusterer(BaseClusterer):
-    def __init__(self, data_params, k, bw_params, n_iters=20,init=0):
+    def __init__(self, data_params, k, bw_params, n_iters=20,init=0,infer_covar=False):
         self.n_iters = n_iters
         self.em_bw, self.gumbel_temp, self.softmin_bw = bw_params
         self.init = init
         self.k = k # no. clusters
         self.n, self.d = tuple(data_params) # n = batch size, d = data dim
-
+        self.infer_covar = infer_covar
     def set_data(self, x):
         #x = tf.Print(x,[x],'input x:')
         self.x = x
@@ -230,15 +230,21 @@ class EMClusterer(BaseClusterer):
         self.history_list = []
         self.diff_history = []
     def update_params(self):
-        self.z = self.infer_z(self.x, self.theta, self.em_bw)
-        old_theta = self.theta
-        self.theta = self.infer_theta(self.x, self.z)  # update
+        if self.infer_covar:
+            self.z = self.infer_z2(self.x, self.theta, self.em_bw)
+            old_theta = self.theta
+            self.theta = self.infer_theta(self.x, self.z)  # update
+        else:
+            self.z = self.infer_z(self.x, self.theta, self.em_bw)
+            old_theta = self.theta
+            self.theta = self.infer_theta(self.x, self.z)  # update
         diff = tf.reduce_sum((old_theta-self.theta)**2)
         self.diff_history.append(diff)
         self.history_list.append(self.z)  # log
 
     @staticmethod
     def infer_theta(x, z):
+        """ Infer Gaussian means """
         clust_sums = tf.matmul(tf.transpose(z), x, name='clust_sums')  # [k,d]
         clust_sz = tf.reduce_sum(z, axis=0, name='clust_sz')  # [k]
         eps = 1e-1
@@ -247,12 +253,29 @@ class EMClusterer(BaseClusterer):
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids
         return theta
     @staticmethod
+    def infer_sigma(x,z,theta):
+        """ Infer covariance matrices of Gaussians"""
+        # TODO
+        return NotImplemented
+    @staticmethod
     def infer_z(x, theta, bw):
+        """ Infer belief matrices """
         outer_subtraction = tf.subtract(x[:, :, None], tf.transpose(theta), name='out_sub')  # [n,d,k]
-        z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k]
+        z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k] distance matrix
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
-        z = tf.nn.softmax(bw*z, axis=1)
+        z = tf.nn.softmax(bw*z, axis=1) # when using inferred variance, need different one per cluster/column
+        #check = tf.is_nan(tf.reduce_sum(z))
+        #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
+        return z
+    @staticmethod
+    def infer_z2(x, theta, bw):
+        """ Infer belief matrices """
+        outer_subtraction = tf.subtract(x[:, :, None], tf.transpose(theta), name='out_sub')  # [n,d,k]
+        z = -tf.reduce_sum(outer_subtraction ** 2, axis=1)  # [n,k] distance matrix
+        # numerically stable calculation:
+        z = z - tf.reduce_mean(z, axis=1)[:, None]
+        z = tf.nn.softmax(bw*z, axis=1) # when using inferred variance, need different one per cluster/column
         #check = tf.is_nan(tf.reduce_sum(z))
         #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z
