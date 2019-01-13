@@ -104,6 +104,7 @@ def run(arg_dict):
     bw_params = [em_bw,gumbel_temp,softmin_bw]
     infer_covar = arg_dict['infer_covar']
     clusterer = clst_module([n,n_final_clusters], k, bw_params, n_iters=arg_dict['n_iters'],init=init,infer_covar=infer_covar)
+    #pdb.set_trace()
     log_print(now(),': finished clusterer config')
 
     ###################
@@ -150,7 +151,7 @@ def run(arg_dict):
           summaries.add(tf.summary.histogram('variables/' + variable.op.name, variable))
     # Merge all summaries together.
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
-    tensorboard_log_dir = 'tb_log_dir'+name
+    tensorboard_log_dir = project_dir+'tb_log_dir'+name
     train_writer = tf.summary.FileWriter(tensorboard_log_dir + '/train', sess.graph)
     log_print(now(),': finished tensorboard config')
 

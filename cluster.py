@@ -148,6 +148,9 @@ class EMClusterer(BaseClusterer):
         self.k = k # no. clusters
         self.n, self.d = tuple(data_params) # n = batch size, d = data dim
         self.infer_covar = infer_covar
+        if self.infer_covar:
+            # init params
+            self.alpha = tf.constant(np.ones(k),tf.float32)
     def set_data(self, x):
         #x = tf.Print(x,[x],'input x:')
         self.x = x
@@ -226,14 +229,28 @@ class EMClusterer(BaseClusterer):
             for i in range(self.k-1):
                 old_centroids = EMClusterer.centroid_choice_layer(data,old_centroids,self.gumbel_temp,self.softmin_bw)
             self.theta = old_centroids
+        if self.infer_covar:
+            # init sigma
+            dist_mat = EMClusterer.get_dist_mat(self.x, self.theta)
+            self.closest_mean = tf.arg_min(dist_mat,dimension=1)
+            prebeliefs = tf.one_hot(self.closest_mean,self.k) #[n,k]
+            self.sigma = EMClusterer.infer_sigma(self.x,prebeliefs,self.theta)
+            pdb.set_trace()
 
         self.history_list = []
         self.diff_history = []
     def update_params(self):
         if self.infer_covar:
+            #Z = Estep(alpha,mu,sigma,X)
+            #alpha,mu,sigma= Mstep(n,X,Z)
+            print 'COVAR:',self.infer_covar,type(self.infer_covar)
+            #pdb.set_trace()
+            pass
+            '''
             self.z = self.infer_z2(self.x, self.theta, self.em_bw)
             old_theta = self.theta
             self.theta = self.infer_theta(self.x, self.z)  # update
+            '''
         else:
             self.z = self.infer_z(self.x, self.theta, self.em_bw)
             old_theta = self.theta
@@ -253,10 +270,24 @@ class EMClusterer(BaseClusterer):
         theta = tf.matmul(normalizer, clust_sums)  # [k,d] soft centroids
         return theta
     @staticmethod
-    def infer_sigma(x,z,theta):
-        """ Infer covariance matrices of Gaussians"""
-        # TODO
-        return NotImplemented
+    def infer_sigma(X,Z,mu):
+        """ 
+             Infer covariance matrices of Gaussians
+             X: [n,d] data matrix 
+             Z: [n,k] belief matrix
+             mu: [k,d] cluster means
+        """
+        out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]  
+        out_sub = tf.transpose(out_sub,[2,0,1]) # [k,n,d]]
+        tmp1,tmp2 = out_sub[:,:,:,tf.newaxis],out_sub[:,:,tf.newaxis,:]
+        expanded = tf.matmul(tmp1,tmp2) # [k,n,d,d]
+        broadcasted = tf.broadcast_to(tf.transpose(Z),(d,d,k,n))
+        broadcasted = tf.transpose(broadcasted,[2,3,0,1])
+        weighted = expanded*broadcasted # [k,n,d,d] belief-weighted dyads
+        summed = tf.reduce_sum(weighted,axis=1) # [k,d,d] sum of belief-weighted dyads
+        normed = tf.broadcast_to((1./c_weights),[d,d,k]) # [d,d,k]
+        sigma = tf.transpose(normed,[2,0,1])*summed # [k,d,d]
+        return sigma
     @staticmethod
     def infer_z(x, theta, bw):
         """ Infer belief matrices """
