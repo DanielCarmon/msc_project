@@ -230,19 +230,24 @@ class EMClusterer(BaseClusterer):
                 old_centroids = EMClusterer.centroid_choice_layer(data,old_centroids,self.gumbel_temp,self.softmin_bw)
             self.theta = old_centroids
         if self.infer_covar:
-            # init sigma
-            dist_mat = EMClusterer.get_dist_mat(self.x, self.theta)
-            self.closest_mean = tf.arg_min(dist_mat,dimension=1)
-            prebeliefs = tf.one_hot(self.closest_mean,self.k) #[n,k]
-            self.sigma = EMClusterer.infer_sigma(self.x,prebeliefs,self.theta)
-            pdb.set_trace()
+            ## init sigmas as covariance matrices for clusters formed by 
+            ## assigning each initial-cluster-mean with points for whom
+            ## he minimizes distance among all initial-cluster-means
+            dist_mat = EMClusterer.get_dist_mat(self.x, self.theta) # distance matrix of data from clusters
+            self.closest_mean = tf.arg_min(dist_mat,dimension=1) # assign each data point a closest-to cluster mean
+            prebeliefs = tf.one_hot(self.closest_mean,self.k) #[n,k], encode as one-hot matrix
+            self.sigma = EMClusterer.infer_sigma(self.x,prebeliefs,self.theta) # [k,d,d], intra-cluster covariances
+            # init alphas:
+            n = tf.shape(prebeliefs)[0]
+            self.alpha = tf.reduce_sum(prebeliefs,axis=0)/tf.cast(n,tf.float32)
 
         self.history_list = []
         self.diff_history = []
     def update_params(self):
         if self.infer_covar:
-            #Z = Estep(alpha,mu,sigma,X)
-            #alpha,mu,sigma= Mstep(n,X,Z)
+            pdb.set_trace()
+            self.z = Estep(self.alpha,self.theta,self.sigma,self.x)
+            self.alpha,self.theta,self.sigma= Mstep(self.x,self.z)
             print 'COVAR:',self.infer_covar,type(self.infer_covar)
             #pdb.set_trace()
             pass
@@ -259,6 +264,32 @@ class EMClusterer(BaseClusterer):
         self.diff_history.append(diff)
         self.history_list.append(self.z)  # log
 
+    @staticmethod
+    def Estep(alpha,mu,sigma,X):
+        n = tf.shape(X)[0]
+        k = tf.shape(mu)[0]
+        d = tf.shape(X)[1]
+        tf_pi = tf.constant(np.pi)
+        def soften_probs(probs,eps=1e-3):
+            probs = probs+eps
+            probs = probs/tf.reduce_sum(probs)
+            return probs
+        inv_sigma = tf.linalg.inv(sigma) # [k,d,d]
+        out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]  
+        out_sub = tf.transpose(out_sub,[0,2,1])[...,tf.newaxis] # [n,k,d,1]
+        broadcasted_covar = tf.broadcast_to(inv_sigma,[n,k,d,d]) # [n,k,d,d]
+        matmul1 = tf.matmul(broadcasted_covar,out_sub) # [k,n,d,1]
+        matmul2 = tf.matmul(out_sub,matmul1,transpose_a=True) # [k,n,1,1]
+        exponent = -0.5*(tf.squeeze(matmul2)) # [n,k]
+        sigma = tf.Print(sigma,[tf.is_nan(tf.reduce_sum(sigma))],message="Before:")
+        dets = tf.linalg.det(sigma) # [k]
+        dets = tf.Print(dets,[tf.is_nan(tf.reduce_sum(dets))],message="After:")
+        denom = tf.sqrt((2*tf_pi)**d*dets)
+        probs = tf.exp(exponent)/denom # [n,k]
+        probs = soften_probs(probs)
+        likelihood = tf.reduce_sum(probs*alpha,axis=1) # [n]
+        Znew = probs*alpha/likelihood[:,tf.newaxis] # [n,k]
+        return Znew
     @staticmethod
     def infer_theta(x, z):
         """ Infer Gaussian means """
@@ -277,6 +308,10 @@ class EMClusterer(BaseClusterer):
              Z: [n,k] belief matrix
              mu: [k,d] cluster means
         """
+        c_weights = tf.reduce_sum(Z,0)
+        n = tf.shape(Z)[0]
+        k = tf.shape(Z)[1]
+        d = tf.shape(X)[1]
         out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]  
         out_sub = tf.transpose(out_sub,[2,0,1]) # [k,n,d]]
         tmp1,tmp2 = out_sub[:,:,:,tf.newaxis],out_sub[:,:,tf.newaxis,:]
