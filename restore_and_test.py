@@ -66,9 +66,8 @@ config = tf.ConfigProto(allow_soft_placement=True)
 log_print(name+': '+'Starting TF Session')
 sess = tf.InteractiveSession(config=config)
 d = 299
-#list_final_clusters = [100,98,512,102]
-#n_final_clusters = list_final_clusters[dataset_flag]
-n_final_clusters = 100
+list_final_clusters = [100,98,512,102]
+n_final_clusters = list_final_clusters[dataset_flag]
 try:
     n_final_clusters = arg_dict['embed_dim']
 except:
