@@ -7,7 +7,9 @@ class BaseClusterer():
     def infer_clustering(self):
         for _ in tqdm(range(self.n_iters), desc="Building {} Layers".format(self.__class__.__name__)):
             self.update_params()
+        print 'before:',self.history_list
         ys_assign_history = tf.convert_to_tensor(self.history_list)  # [n_iters,n,k] tensor of membership matrices
+        print 'after:',ys_assign_history
         return ys_assign_history
 
     @staticmethod
@@ -245,23 +247,23 @@ class EMClusterer(BaseClusterer):
         self.diff_history = []
     def update_params(self):
         if self.infer_covar:
-            pdb.set_trace()
-            self.z = Estep(self.alpha,self.theta,self.sigma,self.x)
-            self.alpha,self.theta,self.sigma= Mstep(self.x,self.z)
-            print 'COVAR:',self.infer_covar,type(self.infer_covar)
-            #pdb.set_trace()
-            pass
-            '''
-            self.z = self.infer_z2(self.x, self.theta, self.em_bw)
+            for tens in [self.alpha,self.theta,self.sigma,self.x]:
+                print 'preE:',tens
+            self.z = EMClusterer.Estep(self.alpha,self.theta,self.sigma,self.x)
             old_theta = self.theta
-            self.theta = self.infer_theta(self.x, self.z)  # update
-            '''
+            for tens in [self.alpha,self.theta,self.sigma,self.z]:
+                print 'preM:',tens # TODO: why some tensors don't have shape?
+            self.alpha,self.theta,self.sigma= EMClusterer.Mstep(self.x,self.z)
+            for tens in [self.alpha,self.theta,self.sigma]:
+                print 'postM:',tens
         else:
             self.z = self.infer_z(self.x, self.theta, self.em_bw)
             old_theta = self.theta
             self.theta = self.infer_theta(self.x, self.z)  # update
         diff = tf.reduce_sum((old_theta-self.theta)**2)
+        print diff
         self.diff_history.append(diff)
+        print 'updated beliefs:',self.z
         self.history_list.append(self.z)  # log
 
     @staticmethod
@@ -279,17 +281,32 @@ class EMClusterer(BaseClusterer):
         out_sub = tf.transpose(out_sub,[0,2,1])[...,tf.newaxis] # [n,k,d,1]
         broadcasted_covar = tf.broadcast_to(inv_sigma,[n,k,d,d]) # [n,k,d,d]
         matmul1 = tf.matmul(broadcasted_covar,out_sub) # [k,n,d,1]
-        matmul2 = tf.matmul(out_sub,matmul1,transpose_a=True) # [k,n,1,1]
-        exponent = -0.5*(tf.squeeze(matmul2)) # [n,k]
+        matmul2 = tf.matmul(out_sub,matmul1,transpose_a=True) # [n,k,1,1]
+        exponent = -0.5*(tf.squeeze(matmul2,[2,3])) # [n,k]
         sigma = tf.Print(sigma,[tf.is_nan(tf.reduce_sum(sigma))],message="Before:")
         dets = tf.linalg.det(sigma) # [k]
         dets = tf.Print(dets,[tf.is_nan(tf.reduce_sum(dets))],message="After:")
-        denom = tf.sqrt((2*tf_pi)**d*dets)
-        probs = tf.exp(exponent)/denom # [n,k]
-        probs = soften_probs(probs)
-        likelihood = tf.reduce_sum(probs*alpha,axis=1) # [n]
-        Znew = probs*alpha/likelihood[:,tf.newaxis] # [n,k]
+        denom = tf.sqrt((2*tf_pi)**tf.cast(d,tf.float32)*dets)
+        eps = 1e-1
+        probs1 = tf.exp(exponent)/(denom+eps) # [n,k]
+        probs1 = probs1/tf.reduce_sum(probs1)
+        probs2 = soften_probs(probs1)
+        likelihood = tf.reduce_sum(probs2*alpha,axis=1) # [n]
+        Znew = probs2*alpha/likelihood[:,tf.newaxis] # [n,k]
+        for tens in [matmul2,exponent,dets,denom,probs1,probs2,likelihood,Znew]:
+            print 'in Estep:',tens,tens.shape
         return Znew
+    @staticmethod
+    def Mstep(X,Z):
+        n = tf.cast(tf.shape(X)[0],tf.float32)
+        c_weights = tf.reduce_sum(Z,0)
+        alpha = c_weights/n
+        mu = tf.matmul(X,Z,transpose_a=True)/n
+        mu = tf.transpose(mu) # [k,d]
+        sigma = EMClusterer.infer_sigma(X,Z,mu)
+        for tens in [alpha,mu,sigma]:
+            print 'at M Step:', tens,tens.shape
+        return alpha,mu,sigma
     @staticmethod
     def infer_theta(x, z):
         """ Infer Gaussian means """

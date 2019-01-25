@@ -15,6 +15,7 @@ def get_clustering_matrices(y_assign_history):
     #   - y_assign_history: [n_iters,n,k] tensor, who's [i,:,:]th element is a membership matrix inferred at i'th step of inner-optimization process.
     # output:
     #   - y_partition_history: [n_iters,n,n] tensor, who's [i,:,:]th element is a clustering matrix corresponding to bs[i,:,:]
+    print y_assign_history,y_assign_history.shape
     y_partition_history = tf.einsum('tij,tkj->tik', y_assign_history, y_assign_history)  # thanks einstein
     return y_partition_history
 
@@ -88,6 +89,8 @@ class Model:
         # compose loss func on top of output clustering:
         with tf.name_scope('loss') as scope:
             if obj=='L2':
+                #for tens in [self.clustering,self.y]:
+                #    print 'obj==L2',tens,tens.shape
                 self.loss = self.L2_loss(self.clustering, self.y, use_tg)
             elif obj=='nmi':
                 self.loss = self.NMI_loss(self.clustering, self.y, use_tg)
@@ -115,6 +118,7 @@ class Model:
             y: [n,k] tensor. ground truth assignment
             use_tg: bool. whether use trajectory ("aux") gradients or not
         '''
+        print y_pred,y_pred.shape
         y_pred = get_clustering_matrices(y_pred)
         compare = y_pred[-1] # no trajectory gradient
         if use_tg: # trajectory gradient
