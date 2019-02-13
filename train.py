@@ -76,7 +76,7 @@ def run(arg_dict):
     n_gpu_can_handle = 100 # batch size
     n_ = n_gpu_can_handle/k # points per cluster
     n = n_*k
-    data_params = [n, d]
+    data_params = [n, k, d]
     # ebay data configs:
     recompute_ys = dataset_flag==2 # only recompute for products dataset
     n_ebay_batches = 50 # number of preprocessed samples for products dataset
@@ -218,6 +218,8 @@ def run(arg_dict):
                     train_writer.add_summary(summary,i)
                     train_writer.add_run_metadata(run_metadata,'step'+str(i))
                 else:
+                    #c = sess.run(clusterer.cache,feed_dict)
+                    #pdb.set_trace()
                     _,clustering_history,clustering_diffs,loss,grads = sess.run([step,clusterer.history_list, clusterer.diff_history,model.loss, model.grads], feed_dict=feed_dict)
 
                 clustering = clustering_history[-1]

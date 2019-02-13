@@ -24,6 +24,7 @@ class BaseClusterer():
 
 
 class GDKMeansPlusPlus(BaseClusterer):
+
     ''' Optimize over cluster centroids.
         Initialize centroids as in Kmeans++
         Use Gumbel-Softmax trick to approximate a sampling from discrete dist.
@@ -154,7 +155,6 @@ class EMClusterer(BaseClusterer):
             # init params
             self.alpha = tf.constant(np.ones(k),tf.float32)
     def set_data(self, x):
-        #x = tf.Print(x,[x],'input x:')
         self.x = x
         self.init_params()  # TF constants for inner-optimization. Init might be data-driven
 
@@ -232,16 +232,18 @@ class EMClusterer(BaseClusterer):
                 old_centroids = EMClusterer.centroid_choice_layer(data,old_centroids,self.gumbel_temp,self.softmin_bw)
             self.theta = old_centroids
         if self.infer_covar:
-            ## init sigmas as covariance matrices for clusters formed by 
+            ## init sigmas as covariance matrices for clusters formed by
             ## assigning each initial-cluster-mean with points for whom
             ## he minimizes distance among all initial-cluster-means
             dist_mat = EMClusterer.get_dist_mat(self.x, self.theta) # distance matrix of data from clusters
-            self.closest_mean = tf.arg_min(dist_mat,dimension=1) # assign each data point a closest-to cluster mean
-            prebeliefs = tf.one_hot(self.closest_mean,self.k) #[n,k], encode as one-hot matrix
-            self.sigma = EMClusterer.infer_sigma(self.x,prebeliefs,self.theta) # [k,d,d], intra-cluster covariances
+            prebeliefs = tf.nn.softmax(dist_mat) # assign each data point a closest-to cluster mean
+            self.initial_sigma,self.cache = EMClusterer.infer_sigma(self.x,prebeliefs,self.theta) # [k,d,d], intra-cluster covariances
+            self.initial_sigma += tf.convert_to_tensor([tf.eye(self.d) for i in range(self.k)])
+            self.sigma = self.initial_sigma
             # init alphas:
             n = tf.shape(prebeliefs)[0]
             self.alpha = tf.reduce_sum(prebeliefs,axis=0)/tf.cast(n,tf.float32)
+            self.alpha = tf.Print(self.alpha,[self.alpha],"alpha:",summarize=10)
 
         self.history_list = []
         self.diff_history = []
@@ -252,7 +254,7 @@ class EMClusterer(BaseClusterer):
             self.z = EMClusterer.Estep(self.alpha,self.theta,self.sigma,self.x)
             old_theta = self.theta
             for tens in [self.alpha,self.theta,self.sigma,self.z]:
-                print 'preM:',tens # TODO: why some tensors don't have shape?
+                print 'preM:',tens
             self.alpha,self.theta,self.sigma= EMClusterer.Mstep(self.x,self.z)
             for tens in [self.alpha,self.theta,self.sigma]:
                 print 'postM:',tens
@@ -271,22 +273,24 @@ class EMClusterer(BaseClusterer):
         n = tf.shape(X)[0]
         k = tf.shape(mu)[0]
         d = tf.shape(X)[1]
-        tf_pi = tf.constant(np.pi)
         def soften_probs(probs,eps=1e-3):
             probs = probs+eps
             probs = probs/tf.reduce_sum(probs)
             return probs
+        #sigma = tf.Print(sigma,[sigma[0]],message="sigma0:",summarize=100)
         inv_sigma = tf.linalg.inv(sigma) # [k,d,d]
-        out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]  
+        #inv_sigma = tf.Print(inv_sigma,[inv_sigma],message="inv_sigma:",summarize=100)
+        out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]
         out_sub = tf.transpose(out_sub,[0,2,1])[...,tf.newaxis] # [n,k,d,1]
         broadcasted_covar = tf.broadcast_to(inv_sigma,[n,k,d,d]) # [n,k,d,d]
         matmul1 = tf.matmul(broadcasted_covar,out_sub) # [k,n,d,1]
         matmul2 = tf.matmul(out_sub,matmul1,transpose_a=True) # [n,k,1,1]
         exponent = -0.5*(tf.squeeze(matmul2,[2,3])) # [n,k]
-        sigma = tf.Print(sigma,[tf.is_nan(tf.reduce_sum(sigma))],message="Before:")
+        #sigma = tf.Print(sigma,[tf.is_nan(tf.reduce_sum(sigma))],message="Before:")
         dets = tf.linalg.det(sigma) # [k]
-        dets = tf.Print(dets,[tf.is_nan(tf.reduce_sum(dets))],message="After:")
-        denom = tf.sqrt((2*tf_pi)**tf.cast(d,tf.float32)*dets)
+        #dets = tf.Print(dets,[tf.is_nan(tf.reduce_sum(dets))],message="After:")
+        #dets = tf.Print(dets,[dets],"dets:",summarize=100)
+        denom = tf.sqrt(dets)
         eps = 1e-1
         probs1 = tf.exp(exponent)/(denom+eps) # [n,k]
         probs1 = probs1/tf.reduce_sum(probs1)
@@ -303,7 +307,7 @@ class EMClusterer(BaseClusterer):
         alpha = c_weights/n
         mu = tf.matmul(X,Z,transpose_a=True)/n
         mu = tf.transpose(mu) # [k,d]
-        sigma = EMClusterer.infer_sigma(X,Z,mu)
+        sigma,_ = EMClusterer.infer_sigma(X,Z,mu)
         for tens in [alpha,mu,sigma]:
             print 'at M Step:', tens,tens.shape
         return alpha,mu,sigma
@@ -319,27 +323,27 @@ class EMClusterer(BaseClusterer):
         return theta
     @staticmethod
     def infer_sigma(X,Z,mu):
-        """ 
+        """
              Infer covariance matrices of Gaussians
-             X: [n,d] data matrix 
+             X: [n,d] data matrix
              Z: [n,k] belief matrix
              mu: [k,d] cluster means
         """
-        c_weights = tf.reduce_sum(Z,0)
+        c_weights = tf.reduce_sum(Z,0) # points per cluster
         n = tf.shape(Z)[0]
         k = tf.shape(Z)[1]
         d = tf.shape(X)[1]
-        out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]  
-        out_sub = tf.transpose(out_sub,[2,0,1]) # [k,n,d]]
+        out_sub = tf.subtract(X[:, :, None], tf.transpose(mu), name='out_sub')  # [n,d,k]
+        out_sub = tf.transpose(out_sub,[2,0,1]) # [k,n,d] tensor of diff vectors between X,mu
         tmp1,tmp2 = out_sub[:,:,:,tf.newaxis],out_sub[:,:,tf.newaxis,:]
-        expanded = tf.matmul(tmp1,tmp2) # [k,n,d,d]
-        broadcasted = tf.broadcast_to(tf.transpose(Z),(d,d,k,n))
-        broadcasted = tf.transpose(broadcasted,[2,3,0,1])
+        expanded = tf.matmul(tmp1,tmp2) # [k,n,d,d] tensor of dyad per diff vector
+        broadcasted = tf.broadcast_to(tf.transpose(Z),(d,d,k,n)) #
+        broadcasted = tf.transpose(broadcasted,[2,3,0,1]) # [k,n,d,d]
         weighted = expanded*broadcasted # [k,n,d,d] belief-weighted dyads
         summed = tf.reduce_sum(weighted,axis=1) # [k,d,d] sum of belief-weighted dyads
         normed = tf.broadcast_to((1./c_weights),[d,d,k]) # [d,d,k]
         sigma = tf.transpose(normed,[2,0,1])*summed # [k,d,d]
-        return sigma
+        return sigma,locals()
     @staticmethod
     def infer_z(x, theta, bw):
         """ Infer belief matrices """
@@ -348,7 +352,7 @@ class EMClusterer(BaseClusterer):
         # numerically stable calculation:
         z = z - tf.reduce_mean(z, axis=1)[:, None]
         z = tf.nn.softmax(bw*z, axis=1) # when using inferred variance, need different one per cluster/column
-        #check = tf.is_nan(tf.reduce_sum(z))
+        check = tf.is_nan(tf.reduce_sum(z))
         #z = tf.Print(z,[z[0],z[1],check],"inferred Z:")
         return z
     @staticmethod

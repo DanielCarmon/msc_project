@@ -43,7 +43,7 @@ def my_nmi(y_assign_gt,y_assign_predict):
     entropy_joint = my_entropy(p_vals_joint)
     # use mutual info identity:
     mutual_info = entropy1+entropy2-entropy_joint
-    # return normalized: 
+    # return normalized:
     normalizer = tf.sqrt(entropy1*entropy2)
     normalizer = tf.Print(normalizer,[normalizer],"normalizer: ")
     normalizer *= 1.
@@ -56,10 +56,10 @@ class Model:
         self.sess = sess
         self.embedder = embedder
         self.clusterer = clusterer
-        self.n, self.d = tuple(data_params)
+        self.n, self.k, self.d = tuple(data_params)
         with tf.name_scope('data') as scope:
             if is_img:
-                self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
+                self.x = tf.placeholder(tf.float32, [self.n, self.d, self.d, 3])  # rows are data points
             else:
                 self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
         with tf.name_scope('preprocess') as scope:
@@ -76,7 +76,7 @@ class Model:
                 stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
                 self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
         with tf.name_scope('ground_truth') as scope:
-            self.y = tf.placeholder(tf.float32, [None, None]) #[n,k]
+            self.y = tf.placeholder(tf.float32, [self.n, self.k]) #[n,k]
             self.y = tf.cast(self.y, tf.float32)
         with tf.name_scope('embedder') as scope:
             self.x_embed = self.embedder.embed(self.x_preprocessed,for_training) # embeddings tensor
@@ -139,5 +139,5 @@ class Model:
             reduced_mean = tf.Print(reduced_mean,[reduced_mean],'reduced_mean')
             return reduced_mean
         else:
-            compare = y_pred[-1] 
+            compare = y_pred[-1]
             return -my_nmi(y,compare) # optimizer should minimize this
