@@ -59,7 +59,7 @@ class Model:
         self.n, self.k, self.d = tuple(data_params)
         with tf.name_scope('data') as scope:
             if is_img:
-                self.x = tf.placeholder(tf.float32, [self.n, self.d, self.d, 3])  # rows are data points
+                self.x = tf.placeholder(tf.float32, [None, self.d, self.d, 3])  # rows are data points
             else:
                 self.x = tf.placeholder(tf.float32, [self.n, self.d])  # rows are data points
         with tf.name_scope('preprocess') as scope:
@@ -76,7 +76,7 @@ class Model:
                 stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
                 self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
         with tf.name_scope('ground_truth') as scope:
-            self.y = tf.placeholder(tf.float32, [self.n, self.k]) #[n,k]
+            self.y = tf.placeholder(tf.float32, [None, self.k]) #[n,k]
             self.y = tf.cast(self.y, tf.float32)
         with tf.name_scope('embedder') as scope:
             self.x_embed = self.embedder.embed(self.x_preprocessed,for_training) # embeddings tensor

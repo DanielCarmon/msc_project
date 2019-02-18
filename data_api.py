@@ -52,15 +52,17 @@ def get_szs_and_offsets(batch_classes,dataset_flag):
     return szs,offsets
 
 def refresh_train_data_and_ls(dataset_flag,current_batch,mini=False,name=''):
+    print 'start pdb'
+    pdb.set_trace()
     global train_data,train_data_dirs,szs_lst,offsets_lst
     train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011',
                        '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars',
-                       '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data',
+                       '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/permuted_train_data/tmp_data{}'.format(current_batch),
                        '/specific/netapp5_2/gamir/carmonda/research/vision/oxford_flowers/train'
-                       ]   # reset 
+                       ]   # reset
     train_data_dir = train_data_dirs[dataset_flag]
     szs_lst = [np.array(pickle.load(open(data_dir+'/lengths.pickle'))[:len(train_classes)]) for data_dir,train_classes in zip(train_data_dirs,train_classes_lst)] # get lengths file based on updated paths
-    offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst # calculate offsets 
+    offsets_lst = np.array([np.cumsum(szs) for szs in szs_lst])-szs_lst # calculate offsets
     train_data = np.load(train_data_dir+'/train_data.npy') # get new data
 
 def init_train_data(dataset_flag,mini=False,name=''):
@@ -97,7 +99,7 @@ def get_train_batch(dataset_flag,k,n,use_crop=False,recompute_ys=False,name=''):
     except:
         exc =  sys.exc_info()
         traceback.print_exception(*exc)
-        print 'exception for:',name 
+        print 'exception for:',name
         log_print('excpetion with train data load')
         pdb.set_trace()
 
@@ -163,7 +165,7 @@ def get_data(split_flag,dataset_flag):
     train_inds_list = [range(1,101),range(1,99),range(1,513),range(1,103)]
     test_inds_list = [range(101,201),range(99,197),None,range(103,205)]
     val_inds_list = [None,None,range(512),range(205,307)]
-    minitrain_inds_list = [range(1,51),range(1,50)] 
+    minitrain_inds_list = [range(1,51),range(1,50)]
     minitest_inds_list = [range(51,101),range(50,99)]
     split_list = [train_inds_list,test_inds_list,val_inds_list,minitrain_inds_list,minitest_inds_list]
     inds = split_list[split_flag][dataset_flag]
