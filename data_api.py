@@ -52,8 +52,6 @@ def get_szs_and_offsets(batch_classes,dataset_flag):
     return szs,offsets
 
 def refresh_train_data_and_ls(dataset_flag,current_batch,mini=False,name=''):
-    print 'start pdb'
-    pdb.set_trace()
     global train_data,train_data_dirs,szs_lst,offsets_lst
     train_data_dirs = ['/specific/netapp5_2/gamir/carmonda/research/vision/caltech_birds/CUB_200_2011',
                        '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_cars',
