@@ -68,13 +68,9 @@ class Model:
                 self.x = tf.cast(self.x, tf.float32)
                 self.x_centered = tf.subtract(self.x, 0.5)
                 self.x_preprocessed = tf.multiply(self.x_centered, 2.0)
-                stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
-                self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
             else:
                 ## old preprocess:
                 self.x_preprocessed = tf.cast(self.x,tf.float32)
-                stats = [tf.reduce_min(self.x_preprocessed),tf.reduce_max(self.x_preprocessed)]
-                self.x_preprocessed = tf.Print(self.x_preprocessed,stats,'stats:')
         with tf.name_scope('ground_truth') as scope:
             self.y = tf.placeholder(tf.float32, [None, self.k]) #[n,k]
             self.y = tf.cast(self.y, tf.float32)
