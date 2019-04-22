@@ -192,7 +192,8 @@ def run(arg_dict):
         for i in range(n_offset,n_steps): # main loop
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # new batch
             feed_dict = {model.x: xs, model.y: ys}
-            if (i%i_log==0): # save ckpt and refresh data if need to
+            relax_backups = 1 if dataset_flag!=2 else 10 # relax backups for ebay dataset
+            if (i%(relax_backups*i_log)==0): # save ckpt and refresh data if need to
                 log_print(now(),': start ',i,'ckpt save for',name)
                 nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history
                 np.save(project_dir+'train_nmis{}.npy'.format(name),np.array(nmi_2_save))

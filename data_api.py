@@ -122,6 +122,15 @@ def get_len_list(inds,data_dir,augment):
         ret.append(to_append)
     return ret
 
+def get_ebay_val_data():
+    path = '/specific/netapp5_2/gamir/carmonda/research/vision/stanford_products/'
+    xs = np.load(path+'/permuted_val_data/val_data.npy')
+    ls = pickle.load(open(path+'/permuted_val_data/lengths.pickle'))
+    assignment_islands = [np.ones((sz,1)) for sz in ls]
+    ys_assignment = block_diag(*assignment_islands) # assignment matrix
+    print ys_assignment.shape
+    return xs,ys_assignment
+
 def load_specific_data(data_dir,inds,augment=False,use_crop=False,mini=False):
     version = ''
     if use_crop: version = '_cropped'

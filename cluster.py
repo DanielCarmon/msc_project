@@ -259,9 +259,9 @@ class EMClusterer(BaseClusterer):
             for tens in [self.alpha,self.theta,self.sigma]:
                 print 'postM:',tens
         else:
-            self.z = self.infer_z(self.x, self.theta, self.em_bw)
+            self.z = self.infer_z(self.x, self.theta, self.em_bw) # E-step
             old_theta = self.theta
-            self.theta = self.infer_theta(self.x, self.z)  # update
+            self.theta = self.infer_theta(self.x, self.z)  # M-step
         diff = tf.reduce_sum((old_theta-self.theta)**2)
         print diff
         self.diff_history.append(diff)
