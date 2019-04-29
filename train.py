@@ -117,7 +117,7 @@ def run(arg_dict):
     lr = arg_dict['lr'] # base learning-rate
     use_tg = arg_dict['use_tg'] # use aux gradients
     model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
-    n_train_iters = 1000
+    n_train_iters = 2000
     if mini:
         n_train_iters = 500
     i_log = 100 # save ckpt every i_log iters
