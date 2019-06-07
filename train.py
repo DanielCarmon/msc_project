@@ -119,7 +119,7 @@ def run(arg_dict):
     model = Model(data_params, embedder, clusterer, prepro, lr, is_img=True,sess=sess,for_training=for_training,regularize=False, use_tg=use_tg,obj=obj,log_grads=log_grads) # compose clusterer on embedder and add loss function
     n_train_iters = 2000
     if mini:
-        n_train_iters = 500
+        n_train_iters = 1000
     i_log = 100 # save ckpt every i_log iters
     hyparams = [n_train_iters*i_log,k,n_,i_log]
     log_print(now(),': finished training config')
@@ -192,7 +192,8 @@ def run(arg_dict):
         for i in range(n_offset,n_steps): # main loop
             xs, ys = get_train_batch(dataset_flag,k,n,recompute_ys=recompute_ys,name=name) # new batch
             feed_dict = {model.x: xs, model.y: ys}
-            relax_backups = 1 if dataset_flag!=2 else 10 # relax backups for ebay dataset
+            #relax_backups = 1 if dataset_flag!=2 else 10 # relax backups for ebay dataset
+            relax_backups = 10 # relax backups for everybode
             if (i%(relax_backups*i_log)==0): # save ckpt and refresh data if need to
                 log_print(now(),': start ',i,'ckpt save for',name)
                 nmi_2_save = list(nmi_score_history_prefix)+nmi_score_history

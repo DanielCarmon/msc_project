@@ -1,7 +1,7 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "1" 
-os.environ["MKL_NUM_THREADS"] = "1" 
-os.environ["NUMEXPR_NUM_THREADS"] = "1" 
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 import os.path
 import tensorflow as tf
 from sklearn import cluster
@@ -173,16 +173,17 @@ def test(test_data,use_permcovar=False):
         np_embeddings = sess.run(permcovar_endpoint,feed_dict=feed_dict)
         log_print(name+': '+'after ds module:',np_embeddings)
     # 2) cluster
-    log_print(name+': '+'clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...')
-    km = KMeans(n_clusters=n_clusters).fit(np_embeddings)
-    log_print(name+': '+'finished clustering')
-    labels = km.labels_
-    #labels_normalized = km_normalized.labels_
-    nmi_score = skl_nmi(labels, np.argmax(test_ys_membership, 1))
-    #nmi_score_normalized = skl_nmi(labels_normalized, np.argmax(ys_membership, 1))
-    #scores = [nmi_score,nmi_score_normalized]
-    result = nmi_score
-    toc = dcdb.now()
+    result = 0
+    n_recluster = 1
+    for i_recluster in range(n_recluster): # do several times and average result
+        log_print(name+': '+'clustering ',np_embeddings.shape[0],'vectors to ',n_clusters,'clusters...')
+        km = KMeans(n_clusters=n_clusters,n_init=10).fit(np_embeddings)
+        log_print(name+': '+'finished clustering')
+        labels = km.labels_
+        nmi_score = skl_nmi(labels, np.argmax(test_ys_membership, 1))
+        result += nmi_score
+        toc = dcdb.now()
+    result /= n_recluster # average results
     log_print(name+': '+'elapsed: {}'.format(toc-tic))
     return result
 
@@ -191,7 +192,14 @@ if mini: N = 6000
 default_range_checkpoints = range(N) # might want to restore and test only a suffix of this
 i_log = 100 # logging interval
 results = []
-cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
+
+# define ckpt file
+try:
+    cp_file_name = arg_dict['ckpt_file']
+except:
+    cp_file_name = project_dir+'/'+fname_prefix+'{}.npy'.format(name)
+print('using ckpt file: '+cp_file_name)
+
 DIR = project_dir+'/{}'.format(name)
 try: # load previous results, see what checkpoint was last restored and tested
     to_append = np.load(cp_file_name)[0]
@@ -206,70 +214,23 @@ except:
     range_checkpoints = default_range_checkpoints
     to_append = []
 
-for i in range_checkpoints:
+skip = 10
+for i in range_checkpoints[::skip]:
     log_print('testing for {}, checkpoint #{}. data split:{}'.format(name,i,str(eval_split)))
     ckpt_path = project_dir+'/'+name+'/step_{}'.format(i_log*i)+'.ckpt'
     if use_permcovar: log_print('WARNING: using permcovar' )
     #ckpt_path = '/specific/netapp5_2/gamir/carmonda/research/vision/msc_project/inception-v3/model.ckpt-157585' # for debug.
     try:
         with tf.device('/cpu:0'):
+            #pdb.set_trace()
             saver.restore(sess,ckpt_path)
-            debug = False
-            if debug:
-                bn_test_vs = list(filter(lambda v: 'moving_v' in v.name,tf_vs))
-                bn_test_vs_names = [v.name for v in bn_test_vs]
-                bn_test_vs_vals = sess.run(bn_test_vs)
-                for v,v_val in zip(bn_test_vs,bn_test_vs_vals):
-                    assigned_val = v_val
-                    print 'assigning ',v,' with:',np.mean(assigned_val)
-                    old_val = sess.run(v)
-                    v = tf.assign(v,assigned_val)
-                    new_val = sess.run(v)
-                    print 'b:',np.mean(old_val),'a:',np.mean(new_val)
-        '''
-        def save2txt(f,arr):
-            order = len(arr.shape)
-            if order<=2:
-                np.savetxt(f,arr)
-            else:
-                assert order==4
-                for elem1 in arr:
-                    for elem2 in elem1:
-                        f.write('\n####\n')
-                        np.savetxt(f,elem2)
-                    f.write('\n########\n')
-
-        tf_vs_vals = sess.run(tf_vs)
-        # write var vals to file
-        fname = 'tensor_vals_is_train_'+str(is_training)+'_ckpt_'+str(i)
-        #fname = 'tmp_tens_dump_'
-        f = open(fname,'w+')
-        for v,name in zip(tf_vs_vals,tf_vs_names):
-            f.write(name+':\n')
-            save2txt(f,v)
-        f.close()
-        exit()
-        new = sess.run(tf_vs)
-        equiv_cond = lambda x,y: np.all(x==y)
-        print check_diff(True,old,new,tf_vs_names,equiv_cond,verbose=True)
-        print check_diff(False,old,old2,tf_vs_names,equiv_cond,verbose=True)
-        '''
     except:
         exc =  sys.exc_info()
         traceback.print_exception(*exc)
         log_print(name+': restore from '+ckpt_path+' failed. exiting program')
         exit(0)
 
-    #data = refresh_data()
-    ## sample permutation
-    #n_data = all_data[0].shape[0]
-    #perm = np.random.permutation(np.arange(n_data))
-    #def apply_perm(data,perm):
-    #    data[0] = data[0][perm]
-    #    data[1] = data[1][perm]
-    #apply_perm(all_data,perm)
-    data = all_data
-    result = test(data,use_permcovar)
+    result = test(all_data,use_permcovar)
     results.append(result)
     np.save(cp_file_name,[to_append+results,name]) # append new results by copying prev and rewriting
     log_print(name+': '+'checkpoint result:',result)
